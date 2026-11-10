@@ -6,6 +6,10 @@
 //!   double-click, click, one host gesture each.
 //! - [`knob`]: the knob, painted and as a whole control.
 //! - [`light`] and [`button`]: lights, button bodies, lit buttons, switches.
+//! - [`title`]: the red title strip.
+//! - [`help`]: the help line.
+//! - [`zoom`]: the panel scaled as a whole, the window following, the menu.
+//! - [`settings`]: the settings file that remembers the last zoom.
 //!
 //! The panel reaches the plugin only through [`ParamHost`], which the
 //! consumer implements; it never names a consumer's parameter or feature
@@ -28,9 +32,13 @@ use egui::{Color32, FontId, Id, Rect, Response};
 
 pub mod button;
 pub mod gesture;
+pub mod help;
 pub mod knob;
 pub mod light;
 pub mod palette;
+pub mod settings;
+pub mod title;
+pub mod zoom;
 
 /// What every panel needs from its plugin, by parameter string ID. Values
 /// are normalised, 0 … 1, as hosts see them. A consumer implements it on

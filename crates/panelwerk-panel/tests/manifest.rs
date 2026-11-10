@@ -1,6 +1,7 @@
-//! CLAUDE.md rule 2: `panelwerk-panel` depends on egui alone, at exactly the
-//! version the consumers' nice-plug-egui 0.6.0 uses, and never on nice-plug
-//! or nice-plug-egui, which each consumer vendors and patches for itself.
+//! CLAUDE.md rule 2: `panelwerk-panel` depends on egui, at exactly the
+//! version the consumers' nice-plug-egui 0.6.0 uses (PW-13), and serde_json
+//! for the settings file (PW-8), and never on nice-plug or nice-plug-egui,
+//! which each consumer vendors and patches for itself.
 //! Dev-dependencies are allowed.
 
 /// The entries of one `[section]` of a Cargo manifest (not a TOML parser:
@@ -19,11 +20,11 @@ fn section_entries(manifest: &str, section: &str) -> Vec<String> {
 }
 
 #[test]
-fn rule_2_the_panel_layer_depends_on_egui_0_37_0_only() {
+fn rule_2_the_panel_layer_depends_on_egui_0_37_0_and_serde_json_only() {
     let manifest = include_str!("../Cargo.toml");
     assert!(!manifest.contains("[target."), "no target-specific dependency sections");
     assert!(!manifest.contains("[dependencies."), "no dotted dependency tables");
-    assert_eq!(section_entries(manifest, "[dependencies]"), vec!["egui = \"=0.37.0\""]);
+    assert_eq!(section_entries(manifest, "[dependencies]"), vec!["egui = \"=0.37.0\"", "serde_json = \"1\""]);
     assert_eq!(section_entries(manifest, "[build-dependencies]"), Vec::<String>::new());
     let dev = section_entries(manifest, "[dev-dependencies]");
     assert!(!dev.iter().any(|e| e.starts_with("nice-plug")), "never nice-plug or nice-plug-egui, in tests either");

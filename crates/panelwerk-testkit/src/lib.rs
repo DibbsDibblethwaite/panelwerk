@@ -1,8 +1,8 @@
 //! Panelwerk's test kit (PW-9): what the panel's tests and each consumer's
 //! panel tests share. Dev-only, never shipped.
 //!
-//! - [`FakeHost`]: a host that records every gesture and shows what is set,
-//!   or lags as a real host does.
+//! - [`FakeHost`]: a host that records every gesture and every zoom chosen,
+//!   and shows what is set, or lags as a real host does.
 //! - [`Window`]: a headless egui window run a pass at a time
 //!   (`egui::Context::run_ui`), with clicks, drags and hovers, and what the
 //!   last pass drew: shapes, texts, lights, the window's commands.
@@ -30,6 +30,7 @@ use egui::{
     Color32, Context, Event, FontId, FullOutput, Id, Modifiers, PointerButton, Pos2, RawInput, Rect, Ui, Vec2,
     ViewportCommand, ViewportId,
 };
+use panelwerk_panel::zoom::ZoomHost;
 use panelwerk_panel::ParamHost;
 
 /// A fake host: parameters by ID with their defaults, every gesture
@@ -56,6 +57,8 @@ pub struct FakeHost {
     pub gestures: RefCell<Vec<String>>,
     /// Hold the values: a set is recorded but not shown (a host's lag).
     pub lagging: Cell<bool>,
+    /// Every zoom the user chose, in order.
+    pub zooms: RefCell<Vec<f32>>,
     defaults: Vec<(String, f32)>,
     steps: HashMap<String, usize>,
 }
@@ -121,6 +124,12 @@ impl ParamHost for FakeHost {
     }
     fn end(&self, id: &str) {
         self.gestures.borrow_mut().push(format!("end {id}"));
+    }
+}
+
+impl ZoomHost for FakeHost {
+    fn zoom_chosen(&self, zoom: f32) {
+        self.zooms.borrow_mut().push(zoom);
     }
 }
 

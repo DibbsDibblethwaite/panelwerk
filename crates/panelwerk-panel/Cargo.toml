@@ -7,13 +7,16 @@ license.workspace = true
 authors.workspace = true
 publish.workspace = true
 
-# egui only, at exactly the version every consumer's nice-plug-egui uses
-# (0.6.0, on nice-plug 0.4.2: Rödalog, Kör, and Fläns from its M7), so the
-# types are shared. Never nice-plug or nice-plug-egui: each consumer vendors
-# and patches its own nice-plug, so the panel reaches the plugin only
-# through the consumer's Host (CLAUDE.md rule 2; tests/manifest.rs checks).
+# egui, at exactly the version every consumer's nice-plug-egui uses (0.6.0,
+# on nice-plug 0.4.2: Rödalog, Kör, and Fläns from its M7), so the types are
+# shared (PW-13); and serde_json for the settings file (PW-8; MIT OR
+# Apache-2.0, already in every consumer's build through nice-plug's state).
+# Never nice-plug or nice-plug-egui: each consumer vendors and patches its
+# own nice-plug, so the panel reaches the plugin only through the
+# consumer's host (CLAUDE.md rule 2; tests/manifest.rs checks).
 [dependencies]
 egui = "=0.37.0"
+serde_json = "1"
 
 # The panel's own tests use the test kit (PW-9), as consumers do.
 [dev-dependencies]
