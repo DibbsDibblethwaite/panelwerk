@@ -4,6 +4,8 @@
 //! - [`palette`]: the family's colours and the contrast test.
 //! - [`gesture`]: how knobs and switches are worked: drag, fine drag,
 //!   double-click, click, one host gesture each.
+//! - [`knob`]: the knob, painted and as a whole control.
+//! - [`light`] and [`button`]: lights, button bodies, lit buttons, switches.
 //!
 //! The panel reaches the plugin only through [`ParamHost`], which the
 //! consumer implements; it never names a consumer's parameter or feature
@@ -22,9 +24,12 @@
 /// The egui the panel is drawn with: a consumer's window takes this one.
 pub use egui;
 
-use egui::{Color32, FontId, Response};
+use egui::{Color32, FontId, Id, Rect, Response};
 
+pub mod button;
 pub mod gesture;
+pub mod knob;
+pub mod light;
 pub mod palette;
 
 /// What every panel needs from its plugin, by parameter string ID. Values
@@ -65,6 +70,36 @@ pub trait ParamHost {
     fn set(&self, id: &str, normalized: f32);
     /// End the gesture.
     fn end(&self, id: &str);
+}
+
+/// One control on a consumer's panel: where it is (the consumer's layout),
+/// its egui ID (so its tests can find it), the parameter it sets, its name,
+/// and whether it is drawn dimmed while it does nothing (it still works).
+///
+/// ```
+/// use panelwerk_panel::{egui::{pos2, vec2, Id, Rect}, Control};
+///
+/// let mix = Control {
+///     rect: Rect::from_min_size(pos2(142.0, 44.0), vec2(72.0, 72.0)),
+///     id: Id::unique("mix"),
+///     param: "mix",
+///     label: "Mix",
+///     dimmed: false,
+/// };
+/// assert_eq!(mix.label, "Mix");
+/// ```
+#[derive(Clone, Copy, Debug)]
+pub struct Control<'a> {
+    /// Where it is drawn, in points at the panel's base size.
+    pub rect: Rect,
+    /// Its egui ID.
+    pub id: Id,
+    /// The parameter it sets, by string ID.
+    pub param: &'a str,
+    /// Its name on the panel.
+    pub label: &'a str,
+    /// Drawn in the dimmed colours.
+    pub dimmed: bool,
 }
 
 /// The family's text size in points (Kör B-PNL-9, Rödalog B-PNL-4).
