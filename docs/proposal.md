@@ -403,3 +403,9 @@ Each consumer's own words stay its own (rule 1): Rödalog's "Off", "Exponential"
 
 - **PW-15 Times.** PW-1a's answer gives a time the framework's one unit, so a time is always in ms. Rödalog's envelope times run to 45 s, which would read "45000 ms", and its times from 1 s read "1.00 s" today. *Recommend:* times as frequencies, the second exception: their own unit, three figures, **s from 1 s** ("350 ms", "1.00 s", "45.0 s"), which leaves Rödalog's long times as they are and Kör's and Fläns's Fade Out from 1 s reading "1.23 s". Built as asked for now (ms, framework unit, three figures, `milliseconds`); a change is a minor version (v0.2.0) before any consumer adopts. Either way, three figures changes Kör's and Fläns's fixed places as the table says (Kör's Manual Delay "3.505" → "3.51 ms").
 - **PW-16 Rates in steps per second** (Rödalog's Arp and Echo Rates, "0.5", "8.0", "40" today, two figures). *Recommend:* three figures, as frequencies ("8.00 steps/s"); or keep two (`significant(x, 2)`), which the library offers as well.
+
+### v0.1.0's follow-ups (Ian, 2026-11-10)
+
+- **PW-15:** times are a second exception, writing their own unit like frequencies: "350 ms", then seconds from 1 s ("1.00 s", "45.0 s"), 3 significant figures (v0.2.0).
+- **PW-16:** steps per second (Arp Rate) to 3 significant figures.
+- **PW-API:** v0.1.0's API approved as built (rule 2).
