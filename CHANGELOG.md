@@ -4,6 +4,8 @@ All notable changes to Panelwerk. Versions follow `CLAUDE.md`, Versions; a chang
 
 ## v0.3.0 (2026-11-10)
 
+*API approved by Ian, 2026-11-10 (rule 2, PW-API-2), as built; Kör's panel adopted it after Ian's look at the screenshots (PW-6-LOOK).*
+
 Step 2 of `docs/proposal.md`: `panelwerk-panel`'s palette and basic widgets, from Kör's panel with Rödalog's knob details (PW-6), and `panelwerk-testkit` (PW-9). §10 has the API. `panelwerk-text` unchanged.
 
 - `palette`: Rödalog's colours under role names, `contrast` (WCAG 2), `unreadable`, `MIN_CONTRAST` (4.5:1) and `TEXT_ON`, the shared widgets' text pairs, each at least 4.5:1 (the closest `DIMMED_TEXT` on `HOVER`, 4.74:1).
