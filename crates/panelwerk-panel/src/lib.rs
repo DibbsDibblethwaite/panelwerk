@@ -2,6 +2,8 @@
 //! (Rödalog, Kör, Fläns) share, drawn with egui 0.37.0.
 //!
 //! - [`palette`]: the family's colours and the contrast test.
+//! - [`gesture`]: how knobs and switches are worked: drag, fine drag,
+//!   double-click, click, one host gesture each.
 //!
 //! The panel reaches the plugin only through [`ParamHost`], which the
 //! consumer implements; it never names a consumer's parameter or feature
@@ -20,8 +22,9 @@
 /// The egui the panel is drawn with: a consumer's window takes this one.
 pub use egui;
 
-use egui::{Color32, FontId};
+use egui::{Color32, FontId, Response};
 
+pub mod gesture;
 pub mod palette;
 
 /// What every panel needs from its plugin, by parameter string ID. Values
@@ -80,4 +83,10 @@ pub fn colours(dimmed: bool) -> (Color32, Color32) {
     } else {
         (palette::TEXT, palette::RED)
     }
+}
+
+/// Whether a control is under the mouse or being dragged (dragged off it,
+/// it stays hot).
+pub fn hot(response: &Response) -> bool {
+    response.hovered() || response.dragged()
 }

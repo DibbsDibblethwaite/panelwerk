@@ -64,6 +64,7 @@ cat >"$work/.cargo/config.toml" <<CONFIG
 [patch."$source_url"]
 panelwerk-text = { path = "$root/crates/panelwerk-text" }
 panelwerk-panel = { path = "$root/crates/panelwerk-panel" }
+panelwerk-testkit = { path = "$root/crates/panelwerk-testkit" }
 CONFIG
 
 failed=()
@@ -85,7 +86,7 @@ for entry in "${consumers[@]}"; do
         continue
     fi
     crates=()
-    for c in panelwerk-text panelwerk-panel; do
+    for c in panelwerk-text panelwerk-panel panelwerk-testkit; do
         grep -q "^name = \"$c\"" "$clone/Cargo.lock" && crates+=("$c")
     done
     if ((${#crates[@]} == 0)) || ! (cd "$clone" && cargo update --quiet "${crates[@]}"); then

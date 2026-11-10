@@ -14,3 +14,7 @@ publish.workspace = true
 # through the consumer's Host (CLAUDE.md rule 2; tests/manifest.rs checks).
 [dependencies]
 egui = "=0.37.0"
+
+# The panel's own tests use the test kit (PW-9), as consumers do.
+[dev-dependencies]
+panelwerk-testkit = { path = "../panelwerk-testkit" }

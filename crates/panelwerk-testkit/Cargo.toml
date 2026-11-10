@@ -1,0 +1,16 @@
+[package]
+name = "panelwerk-testkit"
+description = "Test helpers for Panelwerk's panel and its consumers' panel tests: a fake host that records gestures, a headless window"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+# Dev-only (PW-9): a consumer takes it as a dev-dependency, never shipped.
+# egui at the panel's version, with its fonts so text is laid out as in a
+# consumer's window; and the panel, for its host traits. Never nice-plug
+# (tests/manifest.rs checks).
+[dependencies]
+egui = { version = "=0.37.0", features = ["default_fonts"] }
+panelwerk-panel = { path = "../panelwerk-panel" }

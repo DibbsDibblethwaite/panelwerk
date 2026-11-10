@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Test coverage gate (CLAUDE.md rule 9): 100 % of lines, functions and
-# regions in both crates. Exclusions, each agreed with Ian and listed here
+# regions in the three crates. Exclusions, each agreed with Ian and listed here
 # with its reason: none.
 #
 # Add --html for a browsable report in target/llvm-cov/html.
