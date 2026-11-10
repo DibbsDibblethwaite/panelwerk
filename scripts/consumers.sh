@@ -28,8 +28,8 @@ root=$PWD
 # which runs its panel's tests and its value-text tests.
 consumers=(
     # "Rödalog|$HOME/code/roedalog|./scripts/hooks/pre-commit"
-    # "Kör|$HOME/code/koer|./scripts/hooks/pre-commit"
-    # "Fläns|$HOME/code/flaens|./scripts/hooks/pre-commit"
+    "Kör|$HOME/code/koer|./scripts/hooks/pre-commit"
+    "Fläns|$HOME/code/flaens|./scripts/hooks/pre-commit"
 )
 
 # The git source the consumers name the library by.
