@@ -1,0 +1,16 @@
+[package]
+name = "panelwerk-panel"
+description = "Ian Dilley's plugin family's panel: palette, knobs, lights, switches, lists, title strip, help line, zoom"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+# egui only, at exactly the version every consumer's nice-plug-egui uses
+# (0.6.0, on nice-plug 0.4.2: Rödalog, Kör, and Fläns from its M7), so the
+# types are shared. Never nice-plug or nice-plug-egui: each consumer vendors
+# and patches its own nice-plug, so the panel reaches the plugin only
+# through the consumer's Host (CLAUDE.md rule 2; tests/manifest.rs checks).
+[dependencies]
+egui = "=0.37.0"

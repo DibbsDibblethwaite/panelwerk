@@ -1,0 +1,5 @@
+# House style, as on Rödalog (Ian, 2026-11-06): wider lines than rustfmt's default 100, and
+# short expressions kept on one line, so formatting matches the code as written.
+edition = "2021"
+max_width = 120
+use_small_heuristics = "Max"

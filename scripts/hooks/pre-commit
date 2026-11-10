@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Pre-commit checks (CLAUDE.md rule 4). Enabled per clone with:
+#   git config core.hooksPath scripts/hooks
+# The coverage gate runs every test, so tests aren't run separately.
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+# Each step's time: step <label> <command…>
+step() {
+    local label=$1 start=$SECONDS
+    shift
+    echo "pre-commit: $label"
+    "$@"
+    echo "pre-commit: $label took $(( (SECONDS - start) / 60 ))m$(( (SECONDS - start) % 60 ))s"
+}
+
+# A commit that changes only Markdown files can't break a build or a test,
+# so it skips them. core.quotePath=false: git otherwise quotes non-ASCII
+# names, which the pattern below would miss.
+staged=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMRD)
+if [[ -n "$staged" ]] && ! grep -qv '\.md$' <<<"$staged"; then
+    echo "pre-commit: only Markdown files staged; no build or tests needed"
+    exit 0
+fi
+
+coverage() { ./scripts/coverage.sh --quiet >/dev/null 2>&1 || { ./scripts/coverage.sh 2>&1 | tail -30; return 1; }; }
+step "tests and 100 % coverage" coverage
+
+# The public API's examples (CLAUDE.md rule 2): nextest, under the coverage
+# run, doesn't run doctests.
+step "doctests" cargo test --quiet --workspace --doc
+
+# The API docs build without broken links.
+step "rustdoc" env RUSTDOCFLAGS="-D warnings" cargo doc --quiet --workspace --no-deps
+
+for target in "" "--target x86_64-pc-windows-gnu"; do
+    # shellcheck disable=SC2086
+    step "clippy ${target:-native}" cargo clippy --quiet --workspace --all-targets $target -- -D warnings
+done

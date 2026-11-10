@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Merge checks (CLAUDE.md rule 4): git doesn't run pre-commit for a merge
+# commit, so a merge runs the same checks on the merged tree.
+set -euo pipefail
+exec "$(git rev-parse --show-toplevel)/scripts/hooks/pre-commit"

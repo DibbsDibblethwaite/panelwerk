@@ -1,0 +1,13 @@
+[package]
+name = "panelwerk-text"
+description = "Ian Dilley's plugin family's text and conventions: tempo-sync names, value text, list IDs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+# None, ever: the text layer is std only, so a consumer's plugin crate (and
+# its engine, if it wants the names) takes nothing else with it (CLAUDE.md
+# rule 2; tests/manifest.rs checks it).
+[dependencies]

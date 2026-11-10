@@ -1,0 +1,11 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+authors = ["Ian Dilley"]
+# Not on crates.io: consumers take it by git tag (CLAUDE.md, Consumers).
+publish = false
