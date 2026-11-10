@@ -1,6 +1,6 @@
 # Panelwerk: a proposal (for Ian)
 
-*2026-11-10. Ian's decision of the same day (Rödalog's `docs/spec.md` §1, "Family library: Panelwerk") is the brief: a library beside DSPWerkbank, in two layers, text and conventions (`std` only) and the panel (egui); consumers pin tags; every release runs all three consumers' checks; one family update moves the three pins together; Rödalog's extras layer on top. The four steps are agreed (§7). This proposal says what goes where, sketches each layer's API, and asks what is still open (§8). Nothing is built yet beyond the two empty crates and the hook.*
+*2026-11-10. Ian's decision of the same day (Rödalog's `docs/spec.md` §1, "Family library: Panelwerk") is the brief: a library beside DSPWerkbank, in two layers, text and conventions (`std` only) and the panel (egui); consumers pin tags; every release runs all three consumers' checks; one family update moves the three pins together; Rödalog's extras layer on top. The four steps are agreed (§7). This proposal says what goes where, sketches each layer's API, and asks what is still open (§8). Step 1, the text layer, is built (v0.1.0, §9).*
 
 ## 1. What the three plugins have today
 
@@ -315,5 +315,91 @@ Each with a recommendation; "as recommended" answers all.
 Every question as recommended, with one change to PW-1:
 
 - **PW-1, value text: one family format** (Ian's note): percentages to **1 decimal**; frequencies to **3 significant figures, then kHz** (from 1 kHz); **units added by the framework** (nice-plug's `with_unit`), not written into the text. So Kör and Fläns change their percentages (whole → 1 decimal) and frequencies (gain kHz); Rödalog changes how its units are attached. Open detail (PW-1a): a framework unit is one fixed string, so a frequency that switches Hz → kHz needs the unit in the text; see the board.
+- **PW-1a, frequency units** (Ian, 2026-11-10): **frequencies write their own unit**, "440 Hz", "1.20 kHz" (three significant figures, kHz from 1 kHz as rounded), the one exception; every other kind takes its unit from the framework (`with_unit`). Built in step 1 (`value::hertz`).
 - PW-2 … PW-14 as recommended: "N bars" (host's bar) and "1/1" (four beats) distinct; sync names and IDs frozen; literal names plus a test per list; no shared note-length type with DSPWerkbank; Rödalog's knob details, sizes per plugin (a screenshot for Ian before Kör's merge); zoom mechanism shared, ranges per plugin; the settings file in the panel layer (serde_json); a test-only `panelwerk-testkit`; steps 1, 2 and 4 now, step 3 as the first task of Rödalog's milestone P; pins move together, a frozen plugin may lag one version until its release; MIT OR Apache-2.0; egui pinned exactly; the help line shared, hints per plugin.
 - PW-REPO: Ian created `DibbsDibblethwaite/panelwerk` (private); `main` pushed.
+
+## 9. Step 1 as built (v0.1.0)
+
+`panelwerk-text` v0.1.0, 2026-11-10. The API, exactly:
+
+```rust
+pub mod sync {
+    pub enum NoteLength { Bars(u32), Note(u32), Dotted(u32), Triplet(u32) }   // Clone, Copy, Debug, PartialEq, Eq
+    impl NoteLength {
+        pub const ALL: [NoteLength; 23];
+        pub const fn name(self) -> &'static str;          // panics for a length not in ALL
+        pub const fn id(self) -> &'static str;            // the same
+        pub fn from_name(name: &str) -> Option<Self>;     // exactly a shown name (a saved key)
+        pub fn from_id(id: &str) -> Option<Self>;         // exactly a list ID
+        pub fn parse(text: &str) -> Option<Self>;         // typed text
+    }
+    pub const fn names<const N: usize>(list: [NoteLength; N]) -> [&'static str; N];
+    pub const fn ids<const N: usize>(list: [NoteLength; N]) -> [&'static str; N];
+}
+pub mod value {
+    pub enum Sign { Unsigned, Signed }                    // Clone, Copy, Debug, PartialEq, Eq
+    pub const FLOOR: &str = "-inf";
+    pub fn fixed(x: f32, places: usize, sign: Sign) -> String;
+    pub fn significant(x: f32, figures: usize) -> String;
+    pub fn percent(fraction: f32, sign: Sign) -> String;
+    pub fn decibels(db: f32, sign: Sign) -> String;
+    pub fn decibels_floored(db: f32, sign: Sign, floor: f32) -> String;
+    pub fn hertz(hz: f32) -> String;                      // with its unit (PW-1a)
+    pub fn milliseconds(ms: f32) -> String;
+    pub fn cents(cents: f32) -> String;
+    pub fn integer(n: i32, sign: Sign) -> String;
+    pub fn parse(text: &str, units: &[&str]) -> Option<f32>;
+    pub fn parse_integer(text: &str, units: &[&str]) -> Option<i32>;
+    pub fn parse_percent(text: &str) -> Option<f32>;      // the fraction
+    pub fn parse_decibels(text: &str, floor: Option<f32>) -> Option<f32>;
+    pub fn parse_hertz(text: &str) -> Option<f32>;
+    pub fn parse_milliseconds(text: &str) -> Option<f32>;
+}
+pub mod ids { pub fn is_id(text: &str) -> bool; }
+```
+
+Changed from §3's sketch, by PW-1's one format: no per-plugin styles (`HertzStyle`, `TimeStyle`, `Decibels { places, unit }` gone); no unit in the text except frequencies'; `percent` takes a `Sign` in place of `percent_signed`; `by_size` is `significant`; times are in ms, the framework's unit; `fixed`, `integer`, `parse_integer`, `parse_percent`, `from_name`, `from_id` and `NoteLength::parse` added.
+
+### The sync tables (frozen, PW-3)
+
+| `NoteLength` | Name | ID | | `NoteLength` | Name | ID |
+| --- | --- | --- | --- | --- | --- | --- |
+| `Bars(16)` | 16 bars | `16bar` | | `Triplet(4)` | 1/4 triplet | `4t` |
+| `Bars(8)` | 8 bars | `8bar` | | `Note(8)` | 1/8 | `8` |
+| `Bars(4)` | 4 bars | `4bar` | | `Dotted(8)` | 1/8 dotted | `8d` |
+| `Bars(2)` | 2 bars | `2bar` | | `Triplet(8)` | 1/8 triplet | `8t` |
+| `Bars(1)` | 1 bar | `1bar` | | `Note(16)` | 1/16 | `16` |
+| `Note(1)` | 1/1 | `1` | | `Dotted(16)` | 1/16 dotted | `16d` |
+| `Dotted(1)` | 1/1 dotted | `1d` | | `Triplet(16)` | 1/16 triplet | `16t` |
+| `Triplet(1)` | 1/1 triplet | `1t` | | `Note(32)` | 1/32 | `32` |
+| `Note(2)` | 1/2 | `2` | | `Dotted(32)` | 1/32 dotted | `32d` |
+| `Dotted(2)` | 1/2 dotted | `2d` | | `Triplet(32)` | 1/32 triplet | `32t` |
+| `Triplet(2)` | 1/2 triplet | `2t` | | | | |
+| `Note(4)` | 1/4 | `4` | | | | |
+| `Dotted(4)` | 1/4 dotted | `4d` | | | | |
+
+`ALL` is that order. `1bar` is the one new ID (Rödalog has no IDs, and neither Kör nor Fläns has 1 bar). Each consumer's list is these in its own order; `tests/sync.rs` writes out Rödalog's 16, Kör's 18 and Fläns's 22 as they show today, which are the tables their one-line tests (PW-4) compare with: `assert_eq!(SyncRate::variants(), names(LIST))` and `assert_eq!(SyncRate::ids(), Some(&ids(LIST)[..]))`. nice-plug's own parse of an enum's typed text takes a variant's exact name only; `NoteLength::parse` is for a consumer's panel, and takes a name in any case and spacing, "4 bar" or "1 bars", and Kör's former "1/4.", "1/4T" (and "1/4d"); a bare ID isn't taken ("4" could be 1/4 or 4 bars).
+
+### The value formats, and what each consumer would show
+
+Conventions throughout: ASCII "-", no negative zero, "+" above zero only when signed, rounding half away from zero, the format chosen by the value as rounded. The number alone, the consumer's `with_unit` adding the unit, except frequencies (PW-1a).
+
+| Kind | Format | Rödalog | Kör | Fläns |
+| --- | --- | --- | --- | --- |
+| Percentage (PW-1) | one decimal: "50.0", "+12.5" | same text; unit moves to `with_unit`. Fixed: "-0.0 %" between −0.05 % and 0 (its bipolar and Morph %) now "0.0 %" | Mix, Width, Drive, Manual Depth "50 %" → "50.0 %" | Range, Mix "75 %" → "75.0 %"; Colour unchanged |
+| dB | 0.1 dB, signed by parameter; "-inf" at a floor as rounded | same; fixed: Gain "-0.0 dB" between −0.05 and 0 now "0.0 dB" | unchanged | unchanged |
+| Frequency (PW-1, 1a) | three figures, kHz from 1 kHz, own unit | Filter Frequency 20 … 99.9 Hz gains a decimal ("45 Hz" → "45.0 Hz"), 1 … 9.99 kHz a figure ("1.2 kHz" → "1.20 kHz"); LFO Rates below 1 Hz gain a figure ("0.45 Hz" → "0.450 Hz", "0.03 Hz" → "0.0300 Hz") | Manual Rate unchanged on screen ("0.513 Hz"); `with_unit(" Hz")` dropped | Rate below 0.1 Hz gains a figure ("0.045 Hz" → "0.0450 Hz"); `with_unit(" Hz")` dropped |
+| Time (**proposed, PW-15**) | three figures, in ms | below 100 ms gains a figure ("0.45 ms" → "0.450 ms", "3.5 ms" → "3.50 ms", "45 ms" → "45.0 ms"); **from 1 s: "1.00 s" → "1000 ms", "45.0 s" → "45000 ms"**; a bare typed number is ms, not s | Fade In below 10 ms gains a figure ("5.0" → "5.00 ms"); Fade Out below 100 ms gains one ("45" → "45.0 ms"), from 1 s loses one ("1234" → "1230 ms"); Manual Delay loses one ("3.505" → "3.51 ms") | Fade In, Fade Out as Kör's |
+| Cents | 0.1, signed | Fine Tune same; fixed: "+0.0 cents" between 0 and 0.05 now "0.0 cents" | none | none |
+| Whole steps | "+7", "0", "-2" | semitones, octaves, Master Tune unchanged | none | none |
+| Ring Mod Tune (`fixed`, 1 place, signed) | "+7.0" | "+0.0 st" at 0 → "0.0 st" | none | none |
+| Steps per second (**proposed, PW-16**: `significant`, 3) | "0.500", "8.00", "40.0" | Arp Rate, Echo Rate gain a figure ("8.0 steps/s" → "8.00 steps/s", "40 steps/s" → "40.0 steps/s") | none | none |
+| Angle (`fixed`, 0 places) | "180" | none | Manual Phase unchanged ("180°") | none |
+
+Each consumer's own words stay its own (rule 1): Rödalog's "Off", "Exponential", "Linear", "Slow start"; Kör's and Fläns's Bypass. Typed text: each parser takes the number with or without its unit, any ASCII case, a leading "+"; frequencies "k", "kHz", "Hz"; times "ms", or "s" for seconds; levels "-inf" where the parameter has a floor. Kör's and Fläns's parsers took any letters after the number; Panelwerk's take only the kind's own units.
+
+### Questions for Ian (step 1)
+
+- **PW-15 Times.** PW-1a's answer gives a time the framework's one unit, so a time is always in ms. Rödalog's envelope times run to 45 s, which would read "45000 ms", and its times from 1 s read "1.00 s" today. *Recommend:* times as frequencies, the second exception: their own unit, three figures, **s from 1 s** ("350 ms", "1.00 s", "45.0 s"), which leaves Rödalog's long times as they are and Kör's and Fläns's Fade Out from 1 s reading "1.23 s". Built as asked for now (ms, framework unit, three figures, `milliseconds`); a change is a minor version (v0.2.0) before any consumer adopts. Either way, three figures changes Kör's and Fläns's fixed places as the table says (Kör's Manual Delay "3.505" → "3.51 ms").
+- **PW-16 Rates in steps per second** (Rödalog's Arp and Echo Rates, "0.5", "8.0", "40" today, two figures). *Recommend:* three figures, as frequencies ("8.00 steps/s"); or keep two (`significant(x, 2)`), which the library offers as well.
