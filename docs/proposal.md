@@ -309,3 +309,11 @@ Each with a recommendation; "as recommended" answers all.
 ### For Ian to do
 
 - Make the private GitHub repository `DibbsDibblethwaite/panelwerk` and push `main` (`git remote add origin …; git push -u origin main`). Consumers name the library by that URL, and `consumers.sh` patches it.
+
+## Answers (Ian, 2026-11-10, on the Decisions board)
+
+Every question as recommended, with one change to PW-1:
+
+- **PW-1, value text: one family format** (Ian's note): percentages to **1 decimal**; frequencies to **3 significant figures, then kHz** (from 1 kHz); **units added by the framework** (nice-plug's `with_unit`), not written into the text. So Kör and Fläns change their percentages (whole → 1 decimal) and frequencies (gain kHz); Rödalog changes how its units are attached. Open detail (PW-1a): a framework unit is one fixed string, so a frequency that switches Hz → kHz needs the unit in the text; see the board.
+- PW-2 … PW-14 as recommended: "N bars" (host's bar) and "1/1" (four beats) distinct; sync names and IDs frozen; literal names plus a test per list; no shared note-length type with DSPWerkbank; Rödalog's knob details, sizes per plugin (a screenshot for Ian before Kör's merge); zoom mechanism shared, ranges per plugin; the settings file in the panel layer (serde_json); a test-only `panelwerk-testkit`; steps 1, 2 and 4 now, step 3 as the first task of Rödalog's milestone P; pins move together, a frozen plugin may lag one version until its release; MIT OR Apache-2.0; egui pinned exactly; the help line shared, hints per plugin.
+- PW-REPO: Ian created `DibbsDibblethwaite/panelwerk` (private); `main` pushed.
