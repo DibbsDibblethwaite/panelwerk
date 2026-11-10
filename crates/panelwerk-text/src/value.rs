@@ -8,21 +8,21 @@
 //! | Percentage | [`percent`] | one decimal: "50.0", "+12.5" | the framework's, " %" |
 //! | Level | [`decibels`], [`decibels_floored`] | 0.1 dB: "+3.5", "-48.0"; [`FLOOR`] at a floor | the framework's, " dB", " dBFS" |
 //! | Frequency | [`hertz`] | three significant figures, kHz from 1 kHz: "0.513 Hz", "440 Hz", "1.20 kHz" | **its own** (PW-1a) |
-//! | Time | [`milliseconds`] | three significant figures: "0.450", "3.51", "350" | the framework's, " ms" |
+//! | Time | [`time`] | three significant figures, s from 1 s: "0.450 ms", "350 ms", "1.00 s", "45.0 s" | **its own** (PW-15) |
 //! | Fine tuning | [`cents`] | 0.1, signed: "+3.0" | the framework's, " cents" |
 //! | Whole steps | [`integer`] | "+7", "-2" (semitones, octaves, whole cents); "3" (counts) | the framework's, " st", " oct" |
 //! | Anything else | [`fixed`], [`significant`] | a rate "8.00", an angle "180" | the framework's |
 //!
 //! A parameter's unit is added by the framework (nice-plug's `with_unit`,
-//! a space first), so these return the number alone; frequencies are the
-//! one exception (PW-1a, Ian, 2026-11-10), since their unit changes from
-//! Hz to kHz and a framework unit is one fixed string.
+//! a space first), so these return the number alone. Frequencies and times
+//! are the exceptions (PW-1a, PW-15, Ian, 2026-11-10): their unit changes
+//! with size (Hz to kHz, ms to s), and a framework unit is one fixed string.
 //!
 //! The conventions every kind keeps: ASCII "-", so typed text reads back;
 //! no negative zero; a "+" above zero only where the kind or the parameter
 //! is signed; rounding half away from zero; and a format chosen by the value
-//! *as rounded*, so text read back shows the same way ("999.5 Hz" reads
-//! "1.00 kHz", and "1.00 kHz" read back reads the same).
+//! *as rounded*, so text read back shows the same way (999.5 Hz reads
+//! "1.00 kHz", 999.6 ms "1.00 s", and each read back reads the same).
 //!
 //! ```rust,ignore
 //! // A consumer's parameter (nice-plug):
@@ -144,27 +144,33 @@ pub fn decibels_floored(db: f32, sign: Sign, floor: f32) -> String {
 /// assert_eq!(hertz(1234.0), "1.23 kHz");
 /// ```
 pub fn hertz(hz: f32) -> String {
-    let hz = f64::from(hz);
-    if round_significant(hz, 3).0.abs() >= 1_000.0 {
-        let (khz, places) = round_significant(hz / 1_000.0, 3);
-        format!("{} kHz", render(khz, places, Sign::Unsigned))
-    } else {
-        let (hz, places) = round_significant(hz, 3);
-        format!("{} Hz", render(hz, places, Sign::Unsigned))
-    }
+    with_own_unit(hz, "Hz", "kHz")
 }
 
-/// A time in ms to three significant figures, without its unit
-/// (proposed for the family, PW-15).
+/// A time in ms to three significant figures, in s from 1 s as rounded,
+/// **with its unit** (PW-15, Ian, 2026-11-10): the second kind whose
+/// parameter takes no framework unit. [`parse_time`] reads it back.
 ///
 /// ```
-/// use panelwerk_text::value::milliseconds;
+/// use panelwerk_text::value::time;
 ///
-/// assert_eq!(milliseconds(0.45), "0.450");
-/// assert_eq!(milliseconds(350.0), "350");
+/// assert_eq!(time(0.45), "0.450 ms");
+/// assert_eq!(time(350.0), "350 ms");
+/// assert_eq!(time(999.6), "1.00 s");
+/// assert_eq!(time(45_000.0), "45.0 s");
 /// ```
-pub fn milliseconds(ms: f32) -> String {
-    significant(ms, 3)
+pub fn time(ms: f32) -> String {
+    with_own_unit(ms, "ms", "s")
+}
+
+/// `x` to three significant figures with `unit`, or in `thousand` (a
+/// thousand `unit`s) from a thousand as rounded: frequencies' and times'
+/// form.
+fn with_own_unit(x: f32, unit: &str, thousand: &str) -> String {
+    let x = f64::from(x);
+    let (x, unit) = if round_significant(x, 3).0.abs() >= 1_000.0 { (x / 1_000.0, thousand) } else { (x, unit) };
+    let (rounded, places) = round_significant(x, 3);
+    format!("{} {unit}", render(rounded, places, Sign::Unsigned))
 }
 
 /// A fine tuning in cents to 0.1, signed, without its unit.
@@ -270,15 +276,16 @@ pub fn parse_hertz(text: &str) -> Option<f32> {
     }
 }
 
-/// A typed time in ms: with "ms", with "s" (seconds), or none (ms).
+/// A typed time in ms, the inverse of [`time`]: with "ms", with "s"
+/// (seconds), or none (ms).
 ///
 /// ```
-/// use panelwerk_text::value::parse_milliseconds;
+/// use panelwerk_text::value::parse_time;
 ///
-/// assert_eq!(parse_milliseconds("350 ms"), Some(350.0));
-/// assert_eq!(parse_milliseconds("2.5 s"), Some(2500.0));
+/// assert_eq!(parse_time("350 ms"), Some(350.0));
+/// assert_eq!(parse_time("2.5 s"), Some(2500.0));
 /// ```
-pub fn parse_milliseconds(text: &str) -> Option<f32> {
+pub fn parse_time(text: &str) -> Option<f32> {
     match split_unit(text, &["ms", "s"]) {
         (n, Some("s")) => number(n).map(|s| s * 1_000.0),
         (n, _) => number(n),

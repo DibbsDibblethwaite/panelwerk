@@ -212,25 +212,29 @@ fn frequencies_read_back() {
     }
 }
 
-/// Times to three significant figures in ms, the unit the framework's
-/// (proposed, PW-15: `docs/proposal.md` §9).
+/// PW-15 (Ian, 2026-11-10): times to three significant figures, in s from
+/// 1 s (as rounded), writing their own unit, as frequencies do.
 #[test]
-fn times_three_figures_in_milliseconds() {
+fn pw_15_times_three_figures_then_seconds_with_their_own_unit() {
     let table = [
-        (0.45, "0.450"),
-        (1.66, "1.66"),
-        (3.505, "3.51"),
-        (5.0, "5.00"),
-        (9.996, "10.0"),
-        (50.0, "50.0"),
-        (350.0, "350"),
-        (999.6, "1000"),
-        (2_000.0, "2000"),
+        (0.45, "0.450 ms"),
+        (1.66, "1.66 ms"),
+        (3.505, "3.51 ms"),
+        (5.0, "5.00 ms"),
+        (9.996, "10.0 ms"),
+        (50.0, "50.0 ms"),
+        (350.0, "350 ms"),
+        (999.4, "999 ms"),
+        (999.6, "1.00 s"),
+        (1_234.0, "1.23 s"),
+        (2_000.0, "2.00 s"),
+        (9_996.0, "10.0 s"),
+        (45_000.0, "45.0 s"),
+        (99_960.0, "100 s"),
     ];
     for (ms, text) in table {
-        assert_eq!(value::milliseconds(ms), text, "{ms}");
+        assert_eq!(value::time(ms), text, "{ms}");
     }
-    assert_eq!(shown(value::milliseconds(350.0), " ms"), "350 ms");
 }
 
 #[test]
@@ -239,18 +243,21 @@ fn times_read_back_in_milliseconds() {
         ("350 ms", Some(350.0)),
         ("350ms", Some(350.0)),
         ("350", Some(350.0)),
+        ("+350", Some(350.0)),
         ("2.5 s", Some(2_500.0)),
         ("2.5S", Some(2_500.0)),
         ("0.45 MS", Some(0.45)),
         ("ms", None),
+        ("s", None),
+        ("slow", None),
     ];
     for (text, ms) in table {
-        assert_eq!(value::parse_milliseconds(text), ms, "{text:?}");
+        assert_eq!(value::parse_time(text), ms, "{text:?}");
     }
-    for ms in [0.45, 3.505, 9.996, 350.0, 1_999.0] {
-        let text = shown(value::milliseconds(ms), " ms");
-        let back = value::parse_milliseconds(&text).unwrap();
-        assert_eq!(value::milliseconds(back), value::milliseconds(ms), "{text}");
+    for ms in [0.45, 3.505, 9.996, 350.0, 999.4, 999.6, 1_999.0, 45_000.0] {
+        let text = value::time(ms);
+        let back = value::parse_time(&text).unwrap();
+        assert_eq!(value::time(back), text, "{text}");
     }
 }
 

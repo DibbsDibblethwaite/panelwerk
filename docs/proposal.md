@@ -346,7 +346,7 @@ pub mod value {
     pub fn decibels(db: f32, sign: Sign) -> String;
     pub fn decibels_floored(db: f32, sign: Sign, floor: f32) -> String;
     pub fn hertz(hz: f32) -> String;                      // with its unit (PW-1a)
-    pub fn milliseconds(ms: f32) -> String;
+    pub fn time(ms: f32) -> String;                       // with its own unit (PW-15; v0.2.0, was milliseconds)
     pub fn cents(cents: f32) -> String;
     pub fn integer(n: i32, sign: Sign) -> String;
     pub fn parse(text: &str, units: &[&str]) -> Option<f32>;
@@ -354,7 +354,7 @@ pub mod value {
     pub fn parse_percent(text: &str) -> Option<f32>;      // the fraction
     pub fn parse_decibels(text: &str, floor: Option<f32>) -> Option<f32>;
     pub fn parse_hertz(text: &str) -> Option<f32>;
-    pub fn parse_milliseconds(text: &str) -> Option<f32>;
+    pub fn parse_time(text: &str) -> Option<f32>;         // ms; "ms", "s" or bare as ms (v0.2.0, was parse_milliseconds)
 }
 pub mod ids { pub fn is_id(text: &str) -> bool; }
 ```
@@ -383,18 +383,18 @@ Changed from §3's sketch, by PW-1's one format: no per-plugin styles (`HertzSty
 
 ### The value formats, and what each consumer would show
 
-Conventions throughout: ASCII "-", no negative zero, "+" above zero only when signed, rounding half away from zero, the format chosen by the value as rounded. The number alone, the consumer's `with_unit` adding the unit, except frequencies (PW-1a).
+Conventions throughout: ASCII "-", no negative zero, "+" above zero only when signed, rounding half away from zero, the format chosen by the value as rounded. The number alone, the consumer's `with_unit` adding the unit, except frequencies (PW-1a) and times (PW-15, v0.2.0).
 
 | Kind | Format | Rödalog | Kör | Fläns |
 | --- | --- | --- | --- | --- |
 | Percentage (PW-1) | one decimal: "50.0", "+12.5" | same text; unit moves to `with_unit`. Fixed: "-0.0 %" between −0.05 % and 0 (its bipolar and Morph %) now "0.0 %" | Mix, Width, Drive, Manual Depth "50 %" → "50.0 %" | Range, Mix "75 %" → "75.0 %"; Colour unchanged |
 | dB | 0.1 dB, signed by parameter; "-inf" at a floor as rounded | same; fixed: Gain "-0.0 dB" between −0.05 and 0 now "0.0 dB" | unchanged | unchanged |
 | Frequency (PW-1, 1a) | three figures, kHz from 1 kHz, own unit | Filter Frequency 20 … 99.9 Hz gains a decimal ("45 Hz" → "45.0 Hz"), 1 … 9.99 kHz a figure ("1.2 kHz" → "1.20 kHz"); LFO Rates below 1 Hz gain a figure ("0.45 Hz" → "0.450 Hz", "0.03 Hz" → "0.0300 Hz") | Manual Rate unchanged on screen ("0.513 Hz"); `with_unit(" Hz")` dropped | Rate below 0.1 Hz gains a figure ("0.045 Hz" → "0.0450 Hz"); `with_unit(" Hz")` dropped |
-| Time (**proposed, PW-15**) | three figures, in ms | below 100 ms gains a figure ("0.45 ms" → "0.450 ms", "3.5 ms" → "3.50 ms", "45 ms" → "45.0 ms"); **from 1 s: "1.00 s" → "1000 ms", "45.0 s" → "45000 ms"**; a bare typed number is ms, not s | Fade In below 10 ms gains a figure ("5.0" → "5.00 ms"); Fade Out below 100 ms gains one ("45" → "45.0 ms"), from 1 s loses one ("1234" → "1230 ms"); Manual Delay loses one ("3.505" → "3.51 ms") | Fade In, Fade Out as Kör's |
+| Time (PW-15, v0.2.0) | three figures, s from 1 s, own unit | below 100 ms gains a figure ("0.45 ms" → "0.450 ms", "3.5 ms" → "3.50 ms", "45 ms" → "45.0 ms"); 100 ms … and from 1 s unchanged ("350 ms", "1.00 s", "45.0 s"); a bare typed number is ms, not s | Fade In below 10 ms gains a figure ("5.0" → "5.00 ms"); Fade Out below 100 ms gains one ("45.0 ms"), from 1 s reads in s ("1234 ms" → "1.23 s"); Manual Delay loses one ("3.505" → "3.51 ms"); `with_unit(" ms")` dropped | Fade In, Fade Out as Kör's |
 | Cents | 0.1, signed | Fine Tune same; fixed: "+0.0 cents" between 0 and 0.05 now "0.0 cents" | none | none |
 | Whole steps | "+7", "0", "-2" | semitones, octaves, Master Tune unchanged | none | none |
 | Ring Mod Tune (`fixed`, 1 place, signed) | "+7.0" | "+0.0 st" at 0 → "0.0 st" | none | none |
-| Steps per second (**proposed, PW-16**: `significant`, 3) | "0.500", "8.00", "40.0" | Arp Rate, Echo Rate gain a figure ("8.0 steps/s" → "8.00 steps/s", "40 steps/s" → "40.0 steps/s") | none | none |
+| Steps per second (PW-16: `significant`, 3) | "0.500", "8.00", "40.0" | Arp Rate, Echo Rate gain a figure ("8.0 steps/s" → "8.00 steps/s", "40 steps/s" → "40.0 steps/s") | none | none |
 | Angle (`fixed`, 0 places) | "180" | none | Manual Phase unchanged ("180°") | none |
 
 Each consumer's own words stay its own (rule 1): Rödalog's "Off", "Exponential", "Linear", "Slow start"; Kör's and Fläns's Bypass. Typed text: each parser takes the number with or without its unit, any ASCII case, a leading "+"; frequencies "k", "kHz", "Hz"; times "ms", or "s" for seconds; levels "-inf" where the parameter has a floor. Kör's and Fläns's parsers took any letters after the number; Panelwerk's take only the kind's own units.
