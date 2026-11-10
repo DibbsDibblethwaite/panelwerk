@@ -15,7 +15,8 @@ None depends on it yet. **A change must keep every consumer's displayed words an
 ## Layout
 
 - `crates/panelwerk-text`: the text and conventions. **Std only**: no dependencies (`tests/manifest.rs` checks).
-- `crates/panelwerk-panel`: the panel. **egui only**, at exactly the version every consumer's nice-plug-egui uses (`=0.37.0`, nice-plug-egui 0.6.0 on nice-plug 0.4.2), and never nice-plug or nice-plug-egui, which each consumer vendors and patches for itself (`tests/manifest.rs` checks). It reaches the plugin only through the host trait the consumer implements.
+- `crates/panelwerk-panel`: the panel. **egui**, at exactly the version every consumer's nice-plug-egui uses (`=0.37.0`, nice-plug-egui 0.6.0 on nice-plug 0.4.2; PW-13), and **serde_json** for the settings file (PW-8), and never nice-plug or nice-plug-egui, which each consumer vendors and patches for itself (`tests/manifest.rs` checks). It reaches the plugin only through the host traits the consumer implements (`ParamHost`, `zoom::ZoomHost`).
+- `crates/panelwerk-testkit`: dev-only (PW-9), for the panel's tests and each consumer's: a fake host and a headless window. egui (with its fonts) and the panel only.
 
 ## Commands
 
@@ -38,17 +39,17 @@ cargo test --workspace --doc   # the API's examples
 6. **Words and looks are interface.** A shown name can be a saved key (Rödalog's presets save a list's choice by its name, its B-PRE-3), and every consumer's tests freeze its value text and its colours' contrast. So a change to a word, a value text's form, a colour or a control's geometry is agreed with Ian first, is a new minor version at least (see Versions), and its `CHANGELOG.md` entry names what changes on each consumer's panel.
 7. **Strict test-driven development** (as on DSPWerkbank, Kör and Rödalog). Write tests before code, see them fail for the right reason, write the least code that passes, then refactor with the tests green. What moves here from a consumer brings its tests with it, green throughout. The lighter form (tests alongside the code, still to 100 %) for drawing-only code whose look Ian judges by eye, as Rödalog's rule 8; text, gestures and anything a consumer's behaviour rules name stay strict.
 8. **Every threshold says where it came from.** In a comment by each test's limit: a consumer's rule and its number (for example Kör's B-PNL-9, 4.5:1, WCAG 2 AA), a published standard, or "as achieved", which needs Ian's agreement. A close margin between the limit and the measured value (a contrast just above 4.5:1, a text a point narrower than its room) is reported to Ian with its figure, so it's decided rather than accidental.
-9. **Test coverage is 100 %** of lines, functions and regions in both crates. Anything uncovered needs a very good reason agreed with Ian, listed in `scripts/coverage.sh`.
+9. **Test coverage is 100 %** of lines, functions and regions in the three crates. Anything uncovered needs a very good reason agreed with Ian, listed in `scripts/coverage.sh`.
 10. **Clean-room.** Ian gives his plugins away as donationware: no GPL code and no non-commercial content. Don't read or copy GPL code. The look is original: no manufacturer's artwork, names or logos (Clavia, Roland, Electro-Harmonix), as each consumer's own rules say.
 11. **Ask Ian** when a boundary between library and consumer needs a design decision, rather than invent it, and record the answer here or in `docs/proposal.md`.
 12. **Additions, off by default.** What a consumer needs is added as a new option, field or function whose default is today's behaviour, so every other consumer is unaffected even after it moves to the new version. A breaking change is the exception and needs Ian's agreement.
 13. **One library change at a time**, each by its own agent, test first, through this hook. An agent working on a consumer never edits the library from inside that consumer's repository; it reports what it needs, and the change is scheduled here.
 14. **The consumer check before every tag**: `scripts/consumers.sh` builds every consumer against this checkout and runs its full hook; a tag is cut only when every consumer passes, its words and look unchanged unless the change is meant to alter them (rule 6).
-15. **`unsafe`**: none (`#![forbid(unsafe_code)]` in both crates).
+15. **`unsafe`**: none (`#![forbid(unsafe_code)]` in every crate).
 
 ## Versions and the family update
 
-Semantic versioning, one version for both crates, tags `vMAJOR.MINOR.PATCH` on `main`, cut only when the hook and the consumer check have passed; a tag is never moved or deleted. While the version is 0.x, a minor bump may break the API or change what a consumer shows (listed in `CHANGELOG.md`); a patch changes neither.
+Semantic versioning, one version for every crate, tags `vMAJOR.MINOR.PATCH` on `main`, cut only when the hook and the consumer check have passed; a tag is never moved or deleted. While the version is 0.x, a minor bump may break the API or change what a consumer shows (listed in `CHANGELOG.md`); a patch changes neither.
 
 **One family update moves all three consumers' pins together** (Ian, 2026-11-10): after a tag, one agent moves Rödalog's, Kör's and Fläns's pins to it, one consumer after another, each in its own commit through its own hook, and `./scripts/consumers.sh --pins` then shows one tag. The steps are in `docs/proposal.md` §5.
 

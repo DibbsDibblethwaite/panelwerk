@@ -1,6 +1,6 @@
 # Panelwerk: a proposal (for Ian)
 
-*2026-11-10. Ian's decision of the same day (Rödalog's `docs/spec.md` §1, "Family library: Panelwerk") is the brief: a library beside DSPWerkbank, in two layers, text and conventions (`std` only) and the panel (egui); consumers pin tags; every release runs all three consumers' checks; one family update moves the three pins together; Rödalog's extras layer on top. The four steps are agreed (§7). This proposal says what goes where, sketches each layer's API, and asks what is still open (§8). Step 1, the text layer, is built (v0.1.0, §9).*
+*2026-11-10. Ian's decision of the same day (Rödalog's `docs/spec.md` §1, "Family library: Panelwerk") is the brief: a library beside DSPWerkbank, in two layers, text and conventions (`std` only) and the panel (egui); consumers pin tags; every release runs all three consumers' checks; one family update moves the three pins together; Rödalog's extras layer on top. The four steps are agreed (§7). This proposal says what goes where, sketches each layer's API, and asks what is still open (§8). Step 1, the text layer, is built (v0.1.0, §9); step 2, the palette and basic widgets, is built (v0.3.0, §10).*
 
 ## 1. What the three plugins have today
 
@@ -409,3 +409,126 @@ Each consumer's own words stay its own (rule 1): Rödalog's "Off", "Exponential"
 - **PW-15:** times are a second exception, writing their own unit like frequencies: "350 ms", then seconds from 1 s ("1.00 s", "45.0 s"), 3 significant figures (v0.2.0).
 - **PW-16:** steps per second (Arp Rate) to 3 significant figures.
 - **PW-API:** v0.1.0's API approved as built (rule 2).
+
+## 10. Step 2 as built (v0.3.0)
+
+`panelwerk-panel` and `panelwerk-testkit` v0.3.0, 2026-11-10, from Kör's panel (its tests moved with it) and Rödalog's knob details (PW-6). v0.2.0 having gone to PW-15, step 2 is v0.3.0 and step 3 will be v0.4.0. The API, exactly:
+
+```rust
+// panelwerk_panel
+pub use egui;                                          // =0.37.0, the consumer's window takes this one
+pub const TEXT_SIZE: f32 = 13.0;
+pub fn font() -> FontId;                               // proportional, 13 points
+pub fn colours(dimmed: bool) -> (Color32, Color32);    // (TEXT, RED) or (DIMMED_TEXT, DIMMED_VALUE)
+pub fn hot(response: &Response) -> bool;               // hovered or dragged
+pub trait ParamHost {                                  // by parameter string ID, normalised
+    fn value(&self, id: &str) -> f32;
+    fn default_value(&self, id: &str) -> f32;
+    fn text(&self, id: &str) -> String;
+    fn begin(&self, id: &str);
+    fn set(&self, id: &str, normalized: f32);
+    fn end(&self, id: &str);
+}
+pub struct Control<'a> { pub rect: Rect, pub id: Id, pub param: &'a str, pub label: &'a str, pub dimmed: bool }  // Clone, Copy, Debug
+
+pub mod palette {
+    pub const PANEL, SECTION, BORDER, HOVER, TEXT, DIMMED_TEXT, CHOSEN, CHOICE_TEXT, RED, BRIGHT_RED,
+              DIMMED_VALUE, LIT, LIT_RING, DIMMED_LIT, LIGHT_OFF, TRACK, KNOB, RIM, TITLE_STRIP, TITLE_TEXT: Color32;
+    pub const MIN_CONTRAST: f32 = 4.5;
+    pub const TEXT_ON: &[(Color32, Color32)];          // the 11 pairs the shared widgets draw
+    pub fn contrast(a: Color32, b: Color32) -> f32;    // WCAG 2, 1 … 21
+    pub fn unreadable(pairs: &[(Color32, Color32)]) -> Vec<(Color32, Color32, f32)>;
+}
+pub mod gesture {
+    pub const DRAG_RANGE: f32 = 200.0;
+    pub const FINE: f32 = 10.0;
+    pub const PENDING_FOR: f64 = 0.5;
+    pub fn knob(ui: &Ui, host: &dyn ParamHost, response: &Response, param: &str);
+    pub fn toggle_on_click(ui: &Ui, host: &dyn ParamHost, response: &Response, param: &str);
+    pub fn set(ui: &Ui, host: &dyn ParamHost, param: &str, value: f32);
+    pub fn set_once(ui: &Ui, host: &dyn ParamHost, param: &str, value: f32);
+    pub fn latest(ui: &Ui, host: &dyn ParamHost, param: &str) -> f32;
+}
+pub mod knob {
+    pub struct Geometry { pub radius: f32, pub arc_radius: f32, pub arc_width: f32, pub pointer: (f32, f32), pub pointer_width: f32 }
+    pub struct Look { pub value: f32, pub hot: bool, pub dimmed: bool }   // Default; build with ..Look::default()
+    pub const RIM_WIDTH: f32 = 1.5;
+    pub fn angle(position: f32) -> f32;                // 7:30 … 4:30, 270°, egui's angles
+    pub fn paint(painter: &Painter, centre: Pos2, geometry: &Geometry, look: &Look);
+    pub fn knob(ui: &Ui, host: &dyn ParamHost, control: &Control, centre: Pos2, geometry: &Geometry) -> Response;   // name above, value below
+    pub fn inline(ui: &Ui, host: &dyn ParamHost, control: &Control, centre: Pos2, geometry: &Geometry) -> Response; // name at the left, no value
+}
+pub mod light {
+    pub enum Light { Off, Lit, DimmedLit }             // Clone, Copy, Debug, PartialEq, Eq
+    impl Light { pub fn new(lit: bool, dimmed: bool) -> Self; }
+    pub struct Geometry { pub radius: f32, pub inset: f32 }
+    pub const RING_WIDTH: f32 = 1.5;
+    pub const TEXT_GAP: f32 = 6.0;
+    pub fn paint(painter: &Painter, at: Pos2, radius: f32, light: Light);
+}
+pub mod button {
+    pub fn body(painter: &Painter, rect: Rect, hot: bool);
+    pub fn lit(ui: &Ui, rect: Rect, id: Id, label: &str, light: Light, geometry: &light::Geometry) -> Response;
+    pub fn switch(ui: &Ui, host: &dyn ParamHost, control: &Control, size: Vec2, light_radius: f32) -> Response;
+}
+pub mod title { pub fn strip(ui: &Ui, rect: Rect, id: Id, text: &str, size: f32) -> Response; }
+pub mod help {
+    pub const HEIGHT: f32 = 26.0;
+    pub const MARGIN: f32 = 12.0;
+    pub const VALUE_GAP: f32 = 12.0;
+    pub fn line(painter: &Painter, rect: Rect, hint: Option<&str>, value: Option<&str>);
+}
+pub mod zoom {
+    pub struct Range { pub min: f32, pub max: f32, pub menu: &'static [f32] }   // Clone, Copy, Debug, PartialEq
+    impl Range { pub fn clamp(&self, zoom: f32) -> f32; pub fn for_size(&self, size: Vec2, base: Vec2) -> f32; }
+    pub trait ZoomHost { fn zoom_chosen(&self, zoom: f32); }
+    pub const MENU_ROW: Vec2 = (76, 20);
+    pub fn choose(ctx: &Context, host: &dyn ZoomHost, range: &Range, zoom: f32);
+    pub fn follow(ctx: &Context, host: &dyn ZoomHost, base: Vec2, range: &Range);
+    pub fn open_menu(ctx: &Context);
+    pub fn menu_row(at: Pos2, k: usize) -> Rect;
+    pub fn menu(ctx: &Context, host: &dyn ZoomHost, range: &Range, at: Pos2);
+}
+pub mod settings {
+    pub fn file_in(appdata: Option<OsString>, folder: &str) -> Option<PathBuf>;   // <appdata>/<folder>/panel.json
+    pub fn read(path: &Path, range: &Range) -> Option<f32>;
+    pub fn write(path: &Path, zoom: f32, range: &Range) -> std::io::Result<()>;
+    pub fn opening_zoom(project: Option<f32>, file: Option<f32>, range: &Range) -> f32;
+}
+
+// panelwerk_testkit (dev-only, PW-9)
+pub struct FakeHost { pub values, pub gestures, pub lagging, pub zooms, .. }   // ParamHost + ZoomHost; text "id=0.500"
+impl FakeHost { new(defaults), stepped(steps), with(values), get(id), put(id, v), take() -> Vec<String> }
+pub type Run<'a> = dyn FnMut(&mut Ui) + 'a;
+pub struct Window { pub ctx: Context, pub time: f64, pub screen: Vec2, pub last: Option<FullOutput> }
+impl Window { new(screen), pass(events, modifiers, run), idle(run), click(at, run), click_with(at, button, run),
+              double_click(at, run), drag(from, moves, modifiers, run), hover(at, run), rect(id), output(),
+              shapes(), texts_in(area), texts_coloured(colour), circle_in(area, fill), commands() }
+pub fn text_width(text: &str, font: FontId) -> f32;
+```
+
+Changed from §4's sketch:
+
+- **`Control`** (new): a control's rectangle, egui ID, parameter, name and dimming in one, so `knob::knob`, `knob::inline` and `button::switch` take a few arguments; where the knob's centre goes is the consumer's (`centre`), so Kör's three knob placements and Rödalog's are all one function.
+- **`knob::Geometry`** gives the pointer's start and end (`pointer: (from, to)`) in place of a width alone, since Kör's and Rödalog's pointers differ in length as well (sizes per plugin, PW-6). `Look` has `value`, `hot` and `dimmed` only; `pointer`, `bipolar`, `dead_lower_half` and `arcs` come in step 3 as fields off by default (rule 12; a consumer builds a `Look` with `..Look::default()`).
+- **`gesture::knob`** takes the parameter only and returns nothing; the sketch's `Target` (a second value, `to_param`) and the drag's end come in step 3 as an addition, for Rödalog's Morph.
+- **`knob::inline`** (Kör's title-row knob, its name beside it and no value) added; Rödalog's small knob, its value beside it, is step 3's.
+- **`light::Light`** has `Off`, `Lit`, `DimmedLit`; `Custom` is step 3's. `light::Geometry` (radius, inset) places a button's light.
+- **`button::lit`** takes a `Light` and the light's geometry; `button::switch` the button's size and the light's radius.
+- **`title::strip`** takes the text size (Kör's name 15 points) and leaves its clicks to the consumer (Kör's right-click opens the zoom menu; Rödalog's section titles won't).
+- **`help::line`** takes a `Painter`, an optional hint and an optional value; `MARGIN` and `VALUE_GAP` (12 points) added beside `HEIGHT`.
+- **`zoom`**: `Range` has `clamp` and `for_size` as methods; `choose`, `open_menu`, `menu_row` and `MENU_ROW` added; `menu` takes where its first row goes.
+- **`settings`**: `write` and `opening_zoom` take the range too, so a zoom is held to the consumer's.
+- **`palette`**: `MIN_CONTRAST` added; `TEXT_ON` is the shared widgets' 11 pairs (Kör's, under the role names).
+
+### What changes on each consumer's panel
+
+- **Kör** (on adopting, branch `panelwerk-panel`): a lit knob's pointer is white (was the text colour, 220, 220, 224); a dimmed knob's rim under the mouse is the text colour (was the dimmed value's grey, 120, 120, 128, the same as the rim at rest, so it showed no change). Nothing else: its sizes, layout, zoom range, menu, title strip, help line and hints are as they were.
+- **Rödalog**: nothing yet (it adopts in step 3).
+- **Fläns**: nothing (no panel until M7).
+
+### For Ian
+
+- **PW-API-2: the API as built** (rule 2): approve v0.3.0's API above, with its changes from §4's sketch, as v0.1.0's was (PW-API).
+- **The closest contrast** (rule 8): `DIMMED_TEXT` on `HOVER`, 4.74:1 against 4.5:1, as Kör's and Rödalog's tests have had it.
+- **PW-6's screenshots** of Kör's face, drill-down and a dimmed knob hovered, before and after, are in `C:\Users\dibbl\AudioDev\koer-palette\panelwerk-panel\` (`compare-*.png` side by side).

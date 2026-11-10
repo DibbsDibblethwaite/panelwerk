@@ -2,6 +2,25 @@
 
 All notable changes to Panelwerk. Versions follow `CLAUDE.md`, Versions; a change to what a consumer shows (a word, a colour, a size) lists what changes on each consumer's panel.
 
+## v0.3.0 (2026-11-10)
+
+Step 2 of `docs/proposal.md`: `panelwerk-panel`'s palette and basic widgets, from Kör's panel with Rödalog's knob details (PW-6), and `panelwerk-testkit` (PW-9). §10 has the API. `panelwerk-text` unchanged.
+
+- `palette`: Rödalog's colours under role names, `contrast` (WCAG 2), `unreadable`, `MIN_CONTRAST` (4.5:1) and `TEXT_ON`, the shared widgets' text pairs, each at least 4.5:1 (the closest `DIMMED_TEXT` on `HOVER`, 4.74:1).
+- `ParamHost`, `Control`, `TEXT_SIZE` (13), `font`, `colours`, `hot`.
+- `gesture`: Kör's drag (200 points, ×10 finer with Ctrl or Shift, from where the button went down, stopping at the ends), double-click for the default, click to toggle, each one host gesture; the pending value for 0.5 s.
+- `knob`: travel, value arc, body, rim and pointer, the sizes the consumer's (`Geometry`); `knob` (name above, value below) and `inline` (name beside). PW-6: the pointer white, grey while dimmed; the rim red under the mouse, the text colour while dimmed.
+- `light`, `button`: lights lit, dimmed and off; button bodies, lit buttons, switches.
+- `title::strip`, `help::line`, `zoom` (the range and menu sizes the consumer's, PW-7), `settings` (`panel.json` in the consumer's folder, with `serde_json`, PW-8).
+- `panelwerk-testkit`: `FakeHost`, `Window`, `text_width`.
+- Dependencies: `panelwerk-panel` takes `serde_json = "1"` beside `egui = "=0.37.0"` (PW-8, PW-13).
+
+What each consumer's panel shows on adopting:
+
+- **Kör**: a lit knob's pointer white (was 220, 220, 224); a dimmed knob's rim under the mouse in the text colour (was 120, 120, 128, no change from its rim at rest). Nothing else.
+- **Rödalog**: nothing yet (step 3).
+- **Fläns**: nothing (no panel until M7).
+
 ## v0.2.0 (2026-11-10)
 
 - **PW-API** (Ian, 2026-11-10): v0.1.0's API approved as built (rule 2).
