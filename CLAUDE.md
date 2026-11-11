@@ -57,3 +57,13 @@ Semantic versioning, one version for every crate, tags `vMAJOR.MINOR.PATCH` on `
 
 - Commit with Ian's noreply address, `116658505+DibbsDibblethwaite@users.noreply.github.com` (set in this repository).
 - The GitHub repository, `DibbsDibblethwaite/panelwerk`, is Ian's to make, private unless he says otherwise; consumers name the library by that URL.
+
+## Comments and tests (Ian, 2026-11-11)
+
+Many tests and many comments are good. Only the cost of running tests (hook time) limits how many there should be, so never remove or discourage tests or comments merely for their number.
+
+- **A comment that doesn't match the code is a defect,** worse than no comment. That includes doc comments, tolerance and limit notes, and As-built notes. Every reviewer checks that they match the code and the measured values.
+- **Comments explain WHY** the code does what it does: the decision, the rejected alternative, the rule it serves. "What" comments are welcome too, as long as they're true.
+- **A test is flagged** only if it is wrong, can't fail, or costs hook time out of proportion to what it guards.
+
+Every code reviewer's brief includes this section.
