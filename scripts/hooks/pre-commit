@@ -37,3 +37,10 @@ for target in "" "--target x86_64-pc-windows-gnu"; do
     # shellcheck disable=SC2086
     step "clippy ${target:-native}" cargo clippy --quiet --workspace --all-targets $target -- -D warnings
 done
+
+# The comments to re-read (CLAUDE.md, Guards against comment drift, 1; Ian,
+# 2026-11-11): every comment in an item the change touched that it didn't
+# edit, after the checks so it's the last thing shown. For information only:
+# the list never fails a commit, even if making it fails.
+comment_drift() { scripts/comment-drift.sh || echo "pre-commit: the comment-drift list failed; ignored"; }
+step "comments to re-read (information)" comment_drift
