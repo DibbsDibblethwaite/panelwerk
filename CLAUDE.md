@@ -67,3 +67,9 @@ Many tests and many comments are good. Only the cost of running tests (hook time
 - **A test is flagged** only if it is wrong, can't fail, or costs hook time out of proportion to what it guards.
 
 Every code reviewer's brief includes this section.
+
+### Guards against comment drift (Ian, 2026-11-11, COMMENT-DRIFT)
+
+1. **Comments to re-read.** The hook prints, for information (it never fails a commit), every comment inside a function or block the change touched that wasn't itself edited (`scripts/comment-drift.sh`). The implementer's report and the reviewer's each say they re-read that list.
+2. **Numbers live in one place.** A limit, size or count is a named constant. Its comment gives the source and the reason, and refers to the constant rather than copying the number.
+3. **Examples that run.** A comment showing how to use something is a doctest, so the build checks it.
