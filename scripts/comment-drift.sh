@@ -11,7 +11,9 @@
 #                                          use: `v3`, `main`, a commit); HEAD
 #                                          is the current commit by default
 #
-# Output, grouped by file and item, nothing when there's nothing to list:
+# Output, grouped by file and item, nothing when there's nothing to list
+# (and, if the list can't be made, the error and a line saying so, on
+# stderr, and a non-zero exit):
 #   == path/to/file.rs
 #   -- pub fn process(&mut self) (lines 12-40)
 #   path/to/file.rs:14: // the comment line, as it stands
@@ -19,8 +21,10 @@
 # The rules (one file at a time, Rust source only, `*.rs`):
 # - An item is a `{ … }` block whose header (the code since the previous `;`,
 #   `{` or `}`) holds one of fn, impl, trait, struct, enum, union, mod or
-#   macro_rules!. It runs from its doc comment (the comment lines directly
-#   above its header and attributes, up to a blank line) to its closing brace.
+#   macro_rules!: fn and union only before a name (not a `fn(…)` type, nor a
+#   `.union(` call or a variable), and none as a macro's `$trait` or a raw
+#   `r#struct` (DRIFT-3). It runs from its doc comment (the comment lines directly above its header and
+#   attributes, up to a blank line) to its closing brace.
 # - Each changed line belongs to the innermost item that holds it. Listed for
 #   that item: every line in it with comment text (`//`, `///`, `//!`,
 #   `/* … */`, trailing comments after code too) that the change didn't
@@ -43,8 +47,7 @@
 # Limits, accepted for a list that's simple and predictable:
 # - It reads tokens, not Rust's grammar. if, match, loop and closure blocks
 #   aren't items, so a change inside one lists its whole function's comments.
-#   A closure whose header mentions `fn` (`|f: fn()| {`) counts as an item. A
-#   `const` or `static` with a braced initialiser, and `extern` blocks, are
+#   A `const` or `static` with a braced initialiser, and `extern` blocks, are
 #   statements, not items.
 # - Strings, raw strings, char literals and nested block comments are skipped
 #   when matching braces; a char literal is told from a lifetime by its
@@ -60,13 +63,32 @@
 # The same script is copied, unchanged, into each of Ian's Rust projects.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
-exec python3 -I - "$@" <<'PY'
+# If the list can't be made (a fault here, or git's), say so in plain words
+# after the error, so that no list never reads as nothing to re-read
+# (DRIFT-2: an IndexError went unnoticed in DSPWerkbank for two commits).
+status=0
+python3 -I - "$@" <<'PY' || status=$?
 import bisect
 import re
 import subprocess
 import sys
 
-ITEM_KEYWORD = re.compile(r'\b(?:fn|impl|trait|struct|enum|union|mod)\b|\bmacro_rules!')
+# An item's keyword (DRIFT-3). `fn` and `union` only before a name (one
+# that begins with any letter, Unicode's too, or `_`, a raw `r#name` among
+# them, its `r` a letter; or a macro's `$name`), so not a `fn(…) -> …`
+# type in a closure's parameter or a cast, nor a `.union(` call; `union`
+# is a keyword only there, and not
+# before `as`, `in` or `else`, where it is a variable (`union as u8`, `for
+# union in …`, `let … = union else`). None after `$` or `#`: a macro's
+# metavariable (`$trait:ident`) and a raw identifier (`r#struct`) are
+# names. impl, trait, struct, enum and mod are reserved words: outside a
+# raw identifier, nothing else is spelled so.
+ITEM_KEYWORD = re.compile(r'''
+    (?<![$\#])\b(?: fn\s+(?:[^\W\d]|\$)
+                | union\s+(?!(?:as|in|else)\b)(?:[^\W\d]|\$)
+                | (?:impl|trait|struct|enum|mod)\b
+                | macro_rules! )
+''', re.X)
 # What isn't code: comments and literals, found left to right.
 LITERAL = re.compile(r'''
     (?P<line>//[^\n]*)
@@ -122,7 +144,10 @@ def mask(text):
         out.append(re.sub(r'[^\n]', ' ' if is_comment else '"', text[m.start():end]))
         pos = end
     out.append(text[pos:])
-    masked = INNER_ATTRIBUTE.sub(lambda m: ' ' * len(m.group()), ''.join(out))
+    # Its line breaks kept, as for comments: an attribute over several lines
+    # blanked whole read every line below it a few lines off, and stopped
+    # the script on an item near the file's end (DRIFT-2).
+    masked = INNER_ATTRIBUTE.sub(lambda m: re.sub(r'[^\n]', ' ', m.group()), ''.join(out))
     return masked, comments
 
 
@@ -280,3 +305,7 @@ def main(args):
 
 main(sys.argv[1:])
 PY
+if ((status)); then
+    echo "comment-drift: the list of comments to re-read couldn't be made (exit $status; the error is above)" >&2
+    exit "$status"
+fi

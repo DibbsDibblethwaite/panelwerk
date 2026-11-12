@@ -152,6 +152,26 @@ fn shrink() {
 /// Next door.
 fn next() {}
 EOF
+cat >attribute.rs <<'EOF'
+//! An inner attribute over several lines, as DSPWerkbank's springs spike
+//! has (DRIFT-2).
+#![allow(
+    dead_code,
+    unused_imports,
+    unused_variables,
+    clippy::all,
+    clippy::pedantic
+)]
+
+/// One.
+fn one() {}
+
+/// Two.
+fn two() -> u8 {
+    // Two's comment.
+    2
+}
+EOF
 cat >notes.md <<'EOF'
 // Markdown isn't Rust: never listed.
 EOF
@@ -330,15 +350,278 @@ broken.rs:2: // Comment.
 EOF
 commit "9b"
 
-# 10. Wrong use: too many arguments, an unknown base.
+# 10. An inner attribute over several lines (DRIFT-2): blanking it took its
+#     line breaks too, so every line below it was read a few lines off, and
+#     an item in the file's last lines stopped the script (IndexError in
+#     doc_start, on DSPWerkbank's springs spike). Lines below it are read
+#     where they are: a change in the last item lists its doc and comment.
+sed -i 's/^    2$/    3/' attribute.rs
+git add attribute.rs
+check "an inner attribute over several lines keeps the lines below it" <<'EOF'
+== attribute.rs
+-- fn two() -> u8 (lines 14-18)
+attribute.rs:14: /// Two.
+attribute.rs:16: // Two's comment.
+EOF
+commit "10"
+
+# 11. Wrong use: too many arguments, an unknown base. Each failure ends with
+#     a line saying plainly that there is no list (DRIFT-2), so a hook's
+#     reader can't take it for nothing to re-read.
 check "too many arguments" a b c <<'EOF'
 usage: scripts/comment-drift.sh [BASE [HEAD]]
+comment-drift: the list of comments to re-read couldn't be made (exit 1; the error is above)
 (exit 1)
 EOF
 check "an unknown base" no-such-base <<'EOF'
 fatal: bad revision 'no-such-base...HEAD'
+comment-drift: the list of comments to re-read couldn't be made (exit 128; the error is above)
 (exit 128)
 EOF
+
+# 12-15. Keywords that aren't items (DRIFT-3): a `fn` type in a closure's
+#     parameter or a cast, and a `.union(` call, once made the block after
+#     them a false item, which took the comment above it for its doc comment
+#     and hid its comments from the function's list (simd_12a_acceptance.rs's
+#     no-gain-steps test, 5b6f88b). `fn` and `union` count only before a
+#     name; a real union is still an item.
+cat >types.rs <<'EOF'
+/// Applies a picker.
+fn apply(xs: &[f32]) -> f32 {
+    // The comment above the closure.
+    let run = |f: fn(f32) -> f32| {
+        // Inside the closure.
+        f(1.0)
+    };
+    // After the closure.
+    run(|x| x) + xs.len() as f32
+}
+
+/// Sums both sides.
+fn sides(ps: &[(f32, f32)]) -> f32 {
+    let mut total = 0.0;
+    // The comment above the loop.
+    for (name, g) in [("left", (|p| p.0) as fn(&(f32, f32)) -> f32), ("right", |p| p.1)] {
+        // Inside the loop.
+        total += ps.iter().map(g).sum::<f32>() + name.len() as f32;
+    }
+    // After the loop.
+    total
+}
+
+/// The area a control covers.
+fn area(c: &Control) -> Rect {
+    // Columns cover their items.
+    match c {
+        Control::Column(items) => items.iter().fold(Rect::NOTHING, |r, c| r.union(area(c))),
+        // A knob is its own rectangle.
+        Control::Knob(k) => {
+            // Inside the arm.
+            k.rect
+        }
+    }
+}
+
+/// A float or its bits.
+pub union Bits<T: Copy> {
+    // The float.
+    f: f32,
+    u: T,
+}
+EOF
+commit "12"
+sed -i 's/xs.len() as f32$/xs.len() as f32 + 1.0/' types.rs
+git add types.rs
+check "a closure's fn-typed parameter makes no item" <<'EOF'
+== types.rs
+-- fn apply(xs: &[f32]) -> f32 (lines 1-10)
+types.rs:1: /// Applies a picker.
+types.rs:3: // The comment above the closure.
+types.rs:5: // Inside the closure.
+types.rs:8: // After the closure.
+EOF
+commit "12b"
+sed -i 's/^    total$/    total * 2.0/' types.rs
+git add types.rs
+check "a cast to a fn type makes no item" <<'EOF'
+== types.rs
+-- fn sides(ps: &[(f32, f32)]) -> f32 (lines 12-22)
+types.rs:12: /// Sums both sides.
+types.rs:15: // The comment above the loop.
+types.rs:17: // Inside the loop.
+types.rs:20: // After the loop.
+EOF
+commit "13"
+sed -i 's/^            k.rect$/            k.rect.clone()/' types.rs
+git add types.rs
+check "a .union( call makes no item" <<'EOF'
+== types.rs
+-- fn area(c: &Control) -> Rect (lines 24-35)
+types.rs:24: /// The area a control covers.
+types.rs:26: // Columns cover their items.
+types.rs:29: // A knob is its own rectangle.
+types.rs:31: // Inside the arm.
+EOF
+commit "14"
+sed -i 's/^    u: T,$/    u: [T; 1],/' types.rs
+git add types.rs
+check "a union is still an item" <<'EOF'
+== types.rs
+-- pub union Bits<T: Copy> (lines 37-42)
+types.rs:37: /// A float or its bits.
+types.rs:39: // The float.
+EOF
+commit "15"
+
+# 16-18. The same defect in other forms (DRIFT-3): a macro's metavariable
+#     named after a keyword (`$trait`) made its arm a false item, and so did
+#     a variable named `union` (a keyword only before a union's name);
+#     a `fn $name` in a macro is still an item.
+cat >macros.rs <<'EOF'
+/// Adds its arguments.
+macro_rules! add {
+    // The one arm.
+    ($a:expr, $trait:expr) => {
+        // Inside the arm.
+        $a + $trait
+    };
+}
+
+/// Makes a getter.
+macro_rules! getter {
+    ($name:ident) => {
+        /// The getter's doc.
+        fn $name() -> u8 {
+            // Inside the getter.
+            1
+        }
+    };
+}
+
+/// Counts the unions.
+fn count(unions: &[u8]) -> usize {
+    let mut n = 0;
+    // The comment above the loop.
+    for union in unions {
+        // Inside the loop.
+        n += usize::from(*union);
+    }
+    n
+}
+EOF
+commit "16"
+sed -i 's/^        \$a + \$trait$/        $a + $trait + 0/' macros.rs
+git add macros.rs
+check "a macro's \$trait makes no item" <<'EOF'
+== macros.rs
+-- macro_rules! add (lines 1-8)
+macros.rs:1: /// Adds its arguments.
+macros.rs:3: // The one arm.
+macros.rs:5: // Inside the arm.
+EOF
+commit "16b"
+sed -i 's/^            1$/            2/' macros.rs
+git add macros.rs
+check "a macro's fn \$name is still an item" <<'EOF'
+== macros.rs
+-- fn $name() -> u8 (lines 13-17)
+macros.rs:13: /// The getter's doc.
+macros.rs:15: // Inside the getter.
+EOF
+commit "17"
+sed -i 's/^    n$/    n + 0/' macros.rs
+git add macros.rs
+check "a variable named union makes no item" <<'EOF'
+== macros.rs
+-- fn count(unions: &[u8]) -> usize (lines 21-30)
+macros.rs:21: /// Counts the unions.
+macros.rs:24: // The comment above the loop.
+macros.rs:26: // Inside the loop.
+EOF
+commit "18"
+
+# 19-22. Names (DRIFT-3's review): a name may begin with a letter beyond
+#     ASCII (`ébloui`) or be raw (`r#type`); `union as u8` and `union else`
+#     are a variable, not a union; `r#struct` is a name, not the keyword.
+cat >names.rs <<'EOF'
+/// Dazzled.
+fn ébloui() -> u8 {
+    // Inside ébloui.
+    1
+}
+
+/// A raw name.
+fn r#type() -> u8 {
+    // Inside type.
+    1
+}
+
+/// Casts and raw names.
+fn casts(union: u16, r#struct: u8) -> u8 {
+    // Above the cast.
+    if union as u8 > 3 {
+        // Inside the cast's if.
+        return 1;
+    }
+    // Above the raw name.
+    if r#struct > 0 {
+        // Inside the raw name's if.
+        return 2;
+    }
+    0
+}
+
+/// A let-else.
+fn unwrap(union: Option<u8>) -> u8 {
+    // Above the let-else.
+    let Some(v) = union else {
+        // Inside the else.
+        return 0;
+    };
+    v
+}
+EOF
+commit "19"
+sed -i '4s/1/2/' names.rs
+git add names.rs
+check "a name beginning with a letter beyond ASCII is an item" <<'EOF'
+== names.rs
+-- fn ébloui() -> u8 (lines 1-5)
+names.rs:1: /// Dazzled.
+names.rs:3: // Inside ébloui.
+EOF
+commit "19b"
+sed -i '10s/1/2/' names.rs
+git add names.rs
+check "a raw name is an item" <<'EOF'
+== names.rs
+-- fn r#type() -> u8 (lines 7-11)
+names.rs:7: /// A raw name.
+names.rs:9: // Inside type.
+EOF
+commit "20"
+sed -i '25s/0/3/' names.rs
+git add names.rs
+check "union as and r#struct make no item" <<'EOF'
+== names.rs
+-- fn casts(union: u16, r#struct: u8) -> u8 (lines 13-26)
+names.rs:13: /// Casts and raw names.
+names.rs:15: // Above the cast.
+names.rs:17: // Inside the cast's if.
+names.rs:20: // Above the raw name.
+names.rs:22: // Inside the raw name's if.
+EOF
+commit "21"
+sed -i '35s/v/v + 1/' names.rs
+git add names.rs
+check "union else makes no item" <<'EOF'
+== names.rs
+-- fn unwrap(union: Option<u8>) -> u8 (lines 28-36)
+names.rs:28: /// A let-else.
+names.rs:30: // Above the let-else.
+names.rs:32: // Inside the else.
+EOF
+commit "22"
 
 if [[ $failed -ne 0 ]]; then
     echo "test-comment-drift: FAILED"

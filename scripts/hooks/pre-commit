@@ -41,6 +41,19 @@ done
 # The comments to re-read (CLAUDE.md, Guards against comment drift, 1; Ian,
 # 2026-11-11): every comment in an item the change touched that it didn't
 # edit, after the checks so it's the last thing shown. For information only:
-# the list never fails a commit, even if making it fails.
-comment_drift() { scripts/comment-drift.sh || echo "pre-commit: the comment-drift list failed; ignored"; }
+# the list never fails a commit, even if making it fails. Each outcome says
+# what it is (DRIFT-2): an empty list says there's nothing to re-read, and a
+# list that couldn't be made says so in capitals after the script's error,
+# so neither reads as the other (a failure went unnoticed in DSPWerkbank).
+comment_drift() {
+    local list
+    if ! list=$(scripts/comment-drift.sh); then
+        echo "pre-commit: NO LIST of comments to re-read: comment-drift.sh failed (its error above);" \
+            "re-read the changed items' comments by hand. Information only: the commit goes ahead."
+    elif [[ -z "$list" ]]; then
+        echo "pre-commit: no comments to re-read"
+    else
+        echo "$list"
+    fi
+}
 step "comments to re-read (information)" comment_drift
