@@ -39,6 +39,8 @@
 //!   so edits the panel ended together reach the host together.
 //! - [`Held::close`], as the window goes, ends every gesture still open or
 //!   waiting, once, in the order begun: no frame will come to end them.
+//!   [`Held::take_open`] hands them over instead, for the caller to end
+//!   later, where ending them now isn't safe (below).
 //!
 //! **The limit runs only while frames run.** It is checked in
 //! [`Held::frame`] and nowhere else: a hidden window, or a panel that draws
@@ -69,13 +71,40 @@
 //!   it, making the two one undo step in the host;
 //! - the `App` calls [`Held::frame`] with egui's input time before it draws
 //!   the panel;
-//! - the `App` calls [`Held::close`] when the window goes. Where the app is
-//!   made in each `Editor::spawn`, as Kör's and Fläns's are, it is dropped
-//!   with its window, so its `Drop` does it (nice-plug-egui 0.6 keeps the
-//!   app in its `EguiEditor` and never calls `editor_closed`). A consumer
-//!   that makes one editor for the plugin's life must call `close` from
-//!   whatever it has that goes with the window instead (a guard dropped
-//!   with the spawned handle);
+//! - the edits still open end when the window goes. Where the app is made
+//!   in each `Editor::spawn`, as Kör's and Fläns's are, it is dropped with
+//!   its window, so its `Drop` is the place (nice-plug-egui 0.6 keeps the
+//!   app in its `EguiEditor` and never calls `editor_closed`); a consumer
+//!   that makes one editor for the plugin's life needs something else
+//!   dropped with the window (a guard dropped with the spawned handle);
+//! - **under nice-plug's VST3 wrapper, never call into the host from that
+//!   `Drop`**: call [`Held::take_open`] there and end the edits from a task
+//!   queued to the main thread. The window is dropped inside the host's
+//!   call that closes it (`IPlugView::removed`), while the wrapper holds its
+//!   editor handle borrowed; an `endEdit` there, answered by a host with
+//!   `setParamNormalized` while audio isn't processing, has the wrapper
+//!   borrow that handle again in place, and the process aborts (found in
+//!   Rödalog v3, CUBASE-1b, 2026-11-14). Rödalog v3's cure: the close takes
+//!   the open edits and hands them, with the GUI context, to a
+//!   `Plugin::BackgroundTask` that ends them through the context's
+//!   `param_setter()`; it gives the task to the `AsyncExecutor` from a
+//!   thread of its own, joined at once, because nice-plug runs a task
+//!   given on the main thread in place, and from another thread queues it
+//!   for the main thread's next turn, after the close has returned. It
+//!   does the same under CLAP, whose window closes inside `gui.destroy`;
+//!   [`Held::close`] is for a caller not inside such a call (a standalone,
+//!   a test);
+//! - [`Held::frame`]'s ends come from the panel's `ui`, inside the
+//!   window's paint, not inside a call from the host: as far as nice-plug
+//!   0.4.2 and nice-plug-egui 0.6.0 were read (not run), the wrapper holds
+//!   no borrow then, and a host's answering `setParamNormalized` reaches the
+//!   editor's `param_value_changed`, which only asks for a repaint. The
+//!   app's own lock is held during `ui`, though: a consumer must check that
+//!   nothing the host's `endEdit` sets off calls back into its app (in
+//!   nice-plug-egui 0.6, the editor's `track_info_updated` locks it, and
+//!   would deadlock). The wrapper does hold its editor handle mutably
+//!   while it opens the window (`attached`), but a frame drawn then has no
+//!   edit to end where the app, and its `Held`, are made in each `spawn`;
 //! - a panel that draws only when asked asks for another frame while
 //!   `frame` says an edit waits (`ctx.request_repaint()`), or the edit ends
 //!   only at the next input. `frame` runs before the panel draws, so in the
@@ -280,14 +309,25 @@ impl Held {
         !unready.is_empty()
     }
 
+    /// Every gesture still open or waiting, by parameter in the order
+    /// begun, handed to the caller to end for the host later, from a safe
+    /// place (see the [module](self) doc, "Wiring it in"); the host is told
+    /// nothing now, and nothing is left for a later [`Held::frame`] or
+    /// [`Held::close`] to end. The caller ends each one once.
+    pub fn take_open(&self) -> Vec<String> {
+        std::mem::take(&mut self.state.borrow_mut().gestures).into_iter().map(|(id, _)| id).collect()
+    }
+
     /// The window closes: every gesture still open or waiting is ended for
     /// `raw` now, once, in the order begun, whether or not its value has
-    /// arrived; no frame will come to end it. A gesture begun while this
+    /// arrived; no frame will come to end it. For a caller not inside a
+    /// framework's call (a standalone, a test): under nice-plug's VST3
+    /// wrapper a window closes inside such a call, and the edits are taken
+    /// with [`Held::take_open`] and ended later instead (module doc). A gesture begun while this
     /// tells `raw` (from the host's end callback reaching these held edits)
     /// isn't among them: it is ended only by a later `frame` or `close`.
     pub fn close(&self, raw: &dyn ParamHost) {
-        let gestures = std::mem::take(&mut self.state.borrow_mut().gestures);
-        for (id, _) in gestures {
+        for id in self.take_open() {
             raw.end(&id);
         }
     }

@@ -307,6 +307,42 @@ fn pw_hold_close_ends_every_gesture_open_or_waiting_once_in_the_order_begun() {
 }
 
 #[test]
+fn pw_hold_take_open_hands_over_every_open_or_waiting_gesture_telling_the_host_nothing() {
+    let (host, held) = (lagging(), Held::new());
+    held.frame(&host, T0);
+    instant(&held, &host, "b", 1.0);
+    held.begin(&host, "a");
+    held.set(&host, "a", 0.5);
+    host.take();
+    let open = held.take_open();
+    assert_eq!(open, ["b", "a"], "waiting and open, in the order begun");
+    assert!(host.take().is_empty(), "the host is told nothing");
+    // Nothing is left for the held edits to end.
+    assert!(!held.frame(&host, LIMIT));
+    held.end("a");
+    held.frame(&host, LIMIT);
+    held.close(&host);
+    assert!(host.take().is_empty(), "neither frame nor close ends them again");
+    assert!(held.take_open().is_empty());
+    // The caller ends them later (a consumer's task on the main thread):
+    // one end each, in the order begun.
+    for id in &open {
+        host.end(id);
+    }
+    assert_eq!(host.take(), ["end b", "end a"]);
+}
+
+#[test]
+fn pw_hold_after_take_open_an_edit_begins_a_new_gesture() {
+    let (host, held) = (lagging(), Held::new());
+    held.frame(&host, T0);
+    instant(&held, &host, "a", 1.0);
+    held.take_open();
+    instant(&held, &host, "a", 0.0);
+    assert_eq!(host.take(), ["begin a", "set a", "begin a", "set a"], "begun again, not continued");
+}
+
+#[test]
 fn pw_hold_begins_nest_so_an_instant_edit_during_a_drag_does_not_cut_it_off() {
     for model in MODELS {
         let host = FakeHost::new(&[("a", 0.0)]).modelled(model);
