@@ -175,6 +175,66 @@ fn pw_hold_held_can_be_owned_by_a_consumers_app() {
 }
 
 #[test]
+fn pw_hold_an_edit_ends_once_the_plugin_shows_its_value_as_the_plugin_rounds_it() {
+    // The host's `shows`, not an exact comparison: a stepped parameter set
+    // to 0.3 holds 0.25 (4 steps), and that is the value arriving.
+    let host = FakeHost::new(&[("mode", 0.0)]).stepped(&[("mode", 4)]);
+    let held = Held::new();
+    held.frame(&host, T0);
+    instant(&held, &host, "mode", 0.3);
+    assert_eq!(host.get("mode"), 0.25);
+    host.take();
+    assert!(!held.frame(&host, SOON), "nothing waits");
+    assert_eq!(host.take(), ["end mode"], "at the next frame, not at the limit");
+}
+
+/// A host whose `shows` calls back into the held edits, as a consumer's
+/// adapter might through shared state.
+struct Reentrant<'a> {
+    host: FakeHost,
+    held: &'a Held,
+}
+
+impl ParamHost for Reentrant<'_> {
+    fn value(&self, id: &str) -> f32 {
+        self.host.value(id)
+    }
+    fn default_value(&self, id: &str) -> f32 {
+        self.host.default_value(id)
+    }
+    fn text(&self, id: &str) -> String {
+        self.host.text(id)
+    }
+    fn begin(&self, id: &str) {
+        self.host.begin(id)
+    }
+    fn set(&self, id: &str, normalized: f32) {
+        self.host.set(id, normalized)
+    }
+    fn end(&self, id: &str) {
+        self.host.end(id)
+    }
+    fn shows(&self, id: &str, normalized: f32) -> bool {
+        // An end too many: changes nothing, but needs the state.
+        self.held.end(id);
+        self.host.shows(id, normalized)
+    }
+}
+
+#[test]
+fn pw_hold_a_shows_that_calls_back_into_the_held_edits_is_safe() {
+    let held = Held::new();
+    let raw = Reentrant { host: lagging(), held: &held };
+    held.frame(&raw, T0);
+    instant(&held, &raw.host, "a", 1.0);
+    raw.host.take();
+    assert!(held.frame(&raw, SOON), "still waiting, and no double borrow");
+    raw.host.put("a", 1.0);
+    assert!(!held.frame(&raw, SOON));
+    assert_eq!(raw.host.take(), ["end a"]);
+}
+
+#[test]
 fn pw_hold_a_set_outside_a_gesture_is_passed_on_and_held_for_nothing() {
     let host = FakeHost::new(&[("a", 0.0)]);
     let held = Held::new();

@@ -9,7 +9,8 @@
 //! - [`title`]: the red title strip.
 //! - [`help`]: the help line.
 //! - [`hold`]: held edits, a host's gesture kept open until the plugin has
-//!   the value, so an edit made in one instant survives every host.
+//!   the value, so an edit made in one instant survives the hosts that
+//!   would undo it (three modelled; Cubase, tried on Rödalog v2).
 //! - [`zoom`]: the panel scaled as a whole, the window following, the menu.
 //! - [`settings`]: the settings file that remembers the last zoom.
 //!
@@ -84,11 +85,13 @@ pub trait ParamHost {
     /// Whether the plugin has parameter `id` at `normalized`, as it will
     /// hold it: what a held edit ([`hold::Held`]) waits for before it is ended
     /// for the host (PW-HOLD). By default, [`value`](Self::value) equals
-    /// `normalized`. A consumer whose parameters round a normalised value
-    /// (a stepped or a float parameter's plain value) compares plain values
-    /// instead, so an edit it has doesn't wait for a normalised value it
-    /// will never show exactly; with the default such an edit still ends,
-    /// at [`gesture::PENDING_FOR`].
+    /// `normalized`. A consumer on nice-plug should compare plain values
+    /// instead (`unmodulated_plain_value() == preview_plain(normalized)`, as
+    /// Rödalog v2's does): a stepped parameter rounds a normalised value,
+    /// and a float's may change in the round trip through its plain value,
+    /// so with the default such an edit ends only at
+    /// [`gesture::PENDING_FOR`], and a new edit of it before then joins the
+    /// old one in one host gesture (one undo step).
     fn shows(&self, id: &str, normalized: f32) -> bool {
         self.value(id) == normalized
     }

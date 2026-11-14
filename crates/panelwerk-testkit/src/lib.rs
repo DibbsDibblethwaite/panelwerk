@@ -59,7 +59,9 @@ pub struct FakeHost {
     pub values: RefCell<HashMap<String, f32>>,
     /// The gestures so far ([`FakeHost::take`] clears them).
     pub gestures: RefCell<Vec<String>>,
-    /// Hold the values: a set is recorded but not shown (a host's lag).
+    /// Hold the values: a set is recorded but not shown (a host's lag). A
+    /// modelled host ([`FakeHost::modelled`]) ignores it: its sets are
+    /// shown as its model passes them on.
     pub lagging: Cell<bool>,
     /// Every zoom the user chose, in order.
     pub zooms: RefCell<Vec<f32>>,
