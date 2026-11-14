@@ -2,7 +2,9 @@
 //! panel tests share. Dev-only, never shipped.
 //!
 //! - [`FakeHost`]: a host that records every gesture and every zoom chosen,
-//!   and shows what is set, or lags as a real host does.
+//!   and shows what is set, or lags as a real host does, or passes a set on
+//!   at its next process step as one of three modelled hosts does
+//!   ([`Model`]).
 //! - [`Window`]: a headless egui window run a pass at a time
 //!   (`egui::Context::run_ui`), with clicks, drags and hovers, and what the
 //!   last pass drew: shapes, texts, lights, the window's commands.
@@ -36,7 +38,9 @@ use panelwerk_panel::ParamHost;
 /// A fake host: parameters by ID with their defaults, every gesture
 /// recorded as `"begin id"`, `"set id"`, `"end id"`. A set value is shown at
 /// once, rounded to its parameter's steps if it has them (as nice-plug's
-/// stepped parameters are), unless the host is lagging.
+/// stepped parameters are), unless the host is lagging, or is modelled
+/// ([`FakeHost::modelled`]): then it is shown only as the [`Model`] passes
+/// it on at a [`FakeHost::process`] step.
 ///
 /// ```
 /// use panelwerk_panel::ParamHost;
@@ -61,7 +65,49 @@ pub struct FakeHost {
     pub zooms: RefCell<Vec<f32>>,
     defaults: Vec<(String, f32)>,
     steps: HashMap<String, usize>,
+    model: Option<Model>,
+    /// The modelled host's gestures open, by ID.
+    open: RefCell<Vec<String>>,
+    /// What the modelled host passes on at its next process step, in order.
+    next: RefCell<Vec<(String, f32)>>,
 }
+
+/// What a host does with the panel's gestures before its next process step
+/// (PW-HOLD), the three hosts Kör's and Fläns's B-PNL-11 and Rödalog's
+/// B-PAR-11 name, as Rödalog's `tests/vst3_host/model.rs` models them at the
+/// VST3 level. Why it matters: while audio runs, nice-plug's VST3 layer
+/// doesn't apply a panel's set itself and reports the old value until the
+/// host passes the change back, so what the host passes back, and when,
+/// decides whether an edit made in one instant survives.
+///
+/// ```
+/// use panelwerk_panel::ParamHost;
+/// use panelwerk_testkit::{FakeHost, Model};
+///
+/// let host = FakeHost::new(&[("on", 0.0)]).modelled(Model::ReadBack);
+/// host.begin("on");
+/// host.set("on", 1.0);
+/// host.end("on");
+/// host.process();
+/// assert_eq!(host.get("on"), 0.0, "read back at the end: the click undone");
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Model {
+    /// Passes each parameter's last set on at the next process step,
+    /// whether or not its gesture has ended (Reaper).
+    Echo,
+    /// Passes the sets on as [`Model::Echo`] does, and at a gesture's end
+    /// reads the plugin's value back and passes that on too, after them
+    /// (reported of Cubase in Latch mode).
+    ReadBack,
+    /// Passes a parameter's last set on only if its gesture is still open at
+    /// the next process step; a set outside a gesture is never passed on
+    /// (reported of some VST3 hosts; Cubase likely).
+    WhileOpen,
+}
+
+/// Every [`Model`], for a test that runs under each.
+pub const MODELS: [Model; 3] = [Model::Echo, Model::ReadBack, Model::WhileOpen];
 
 impl FakeHost {
     /// A host with these parameters and their defaults, normalised. Any
@@ -77,6 +123,23 @@ impl FakeHost {
     pub fn stepped(mut self, steps: &[(&str, usize)]) -> Self {
         self.steps.extend(steps.iter().map(|(id, n)| ((*id).to_owned(), *n)));
         self
+    }
+
+    /// The same, as a host of `model`: a set is shown only when the model
+    /// passes it on at a [`FakeHost::process`] step (audio running). A host
+    /// not modelled stands for one not processing: nice-plug applies a set
+    /// at once then.
+    pub fn modelled(mut self, model: Model) -> Self {
+        self.model = Some(model);
+        self
+    }
+
+    /// The modelled host's next process step: what it has gathered reaches
+    /// the plugin, in order, each value rounded to its parameter's steps.
+    pub fn process(&self) {
+        for (id, v) in std::mem::take(&mut *self.next.borrow_mut()) {
+            self.put(&id, self.rounded(&id, v));
+        }
     }
 
     /// The same, with these values set (not as gestures).
@@ -99,6 +162,12 @@ impl FakeHost {
     pub fn take(&self) -> Vec<String> {
         std::mem::take(&mut *self.gestures.borrow_mut())
     }
+
+    /// `normalized` as parameter `id` holds it: rounded to its steps, if it
+    /// has them.
+    fn rounded(&self, id: &str, normalized: f32) -> f32 {
+        self.steps.get(id).map_or(normalized, |&n| (normalized * n as f32).round() / n as f32)
+    }
 }
 
 impl ParamHost for FakeHost {
@@ -114,16 +183,38 @@ impl ParamHost for FakeHost {
     }
     fn begin(&self, id: &str) {
         self.gestures.borrow_mut().push(format!("begin {id}"));
+        self.open.borrow_mut().push(id.to_owned());
     }
     fn set(&self, id: &str, normalized: f32) {
         self.gestures.borrow_mut().push(format!("set {id}"));
-        let shown = self.steps.get(id).map_or(normalized, |&n| (normalized * n as f32).round() / n as f32);
-        if !self.lagging.get() {
-            self.put(id, shown);
+        match self.model {
+            None if !self.lagging.get() => self.put(id, self.rounded(id, normalized)),
+            None => {}
+            Some(Model::WhileOpen) if !self.open.borrow().iter().any(|o| o == id) => {}
+            Some(_) => {
+                // The last value: a later one replaces one not yet passed on.
+                let mut next = self.next.borrow_mut();
+                next.retain(|(p, _)| p != id);
+                next.push((id.to_owned(), normalized));
+            }
         }
     }
     fn end(&self, id: &str) {
         self.gestures.borrow_mut().push(format!("end {id}"));
+        let mut open = self.open.borrow_mut();
+        if let Some(at) = open.iter().position(|o| o == id) {
+            open.remove(at);
+        }
+        match self.model {
+            Some(Model::ReadBack) => self.next.borrow_mut().push((id.to_owned(), self.value(id))),
+            Some(Model::WhileOpen) => self.next.borrow_mut().retain(|(p, _)| p != id),
+            _ => {}
+        }
+    }
+    /// The plugin's value is `normalized` as its steps round it, as a
+    /// consumer comparing plain values sees it.
+    fn shows(&self, id: &str, normalized: f32) -> bool {
+        self.value(id) == self.rounded(id, normalized)
     }
 }
 

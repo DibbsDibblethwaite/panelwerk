@@ -78,6 +78,17 @@ pub trait ParamHost {
     fn set(&self, id: &str, normalized: f32);
     /// End the gesture.
     fn end(&self, id: &str);
+    /// Whether the plugin has parameter `id` at `normalized`, as it will
+    /// hold it: what a held edit waits for before it is ended for the host
+    /// (PW-HOLD). By default, [`value`](Self::value) equals
+    /// `normalized`. A consumer whose parameters round a normalised value
+    /// (a stepped or a float parameter's plain value) compares plain values
+    /// instead, so an edit it has doesn't wait for a normalised value it
+    /// will never show exactly; with the default such an edit still ends,
+    /// at [`gesture::PENDING_FOR`].
+    fn shows(&self, id: &str, normalized: f32) -> bool {
+        self.value(id) == normalized
+    }
 }
 
 /// One control on a consumer's panel: where it is (the consumer's layout),
