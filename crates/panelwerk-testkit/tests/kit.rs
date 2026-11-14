@@ -3,7 +3,7 @@
 
 use egui::{pos2, vec2, Align2, Color32, Id, Modifiers, PointerButton, Rect, Sense, Stroke, ViewportCommand};
 use panelwerk_panel::{font, ParamHost};
-use panelwerk_testkit::{text_width, FakeHost, Window};
+use panelwerk_testkit::{text_width, FakeHost, Model, Window, MODELS};
 
 #[test]
 fn the_fake_host_records_gestures_and_shows_values() {
@@ -92,4 +92,80 @@ fn reading_before_a_pass_panics() {
 fn text_width_measures_in_the_font() {
     assert!(text_width("WWWW", font()) > text_width("iiii", font()));
     assert_eq!(text_width("", font()), 0.0);
+}
+
+/// PW-HOLD: a gesture made in one instant, begin, set, end, as a click makes
+/// it.
+fn instant(host: &FakeHost, id: &str, to: f32) {
+    host.begin(id);
+    host.set(id, to);
+    host.end(id);
+}
+
+#[test]
+fn pw_hold_a_modelled_host_shows_a_set_only_at_its_next_process_step() {
+    for model in MODELS {
+        let host = FakeHost::new(&[("mix", 0.5)]).modelled(model);
+        host.begin("mix");
+        host.set("mix", 0.75);
+        assert_eq!(host.get("mix"), 0.5, "{model:?}: not before the process step");
+        host.process();
+        assert_eq!(host.get("mix"), 0.75, "{model:?}: passed on while the gesture is open");
+        host.end("mix");
+        host.process();
+        assert_eq!(host.get("mix"), 0.75, "{model:?}: the end changes nothing once the value has arrived");
+        assert_eq!(host.take(), ["begin mix", "set mix", "end mix"], "{model:?}");
+    }
+}
+
+#[test]
+fn pw_hold_the_echoing_host_passes_on_an_instant_edit() {
+    let host = FakeHost::new(&[("on", 0.0)]).modelled(Model::Echo);
+    instant(&host, "on", 1.0);
+    host.process();
+    assert_eq!(host.get("on"), 1.0);
+    // And a set outside any gesture, and an end with none open.
+    host.set("on", 0.0);
+    host.end("on");
+    host.process();
+    assert_eq!(host.get("on"), 0.0);
+}
+
+#[test]
+fn pw_hold_the_read_back_host_undoes_an_instant_edit_with_the_value_it_reads_at_the_end() {
+    let host = FakeHost::new(&[("on", 0.0)]).modelled(Model::ReadBack);
+    instant(&host, "on", 1.0);
+    host.process();
+    assert_eq!(host.get("on"), 0.0, "the old value, read at the end, applied after the set");
+}
+
+#[test]
+fn pw_hold_the_while_open_host_drops_a_set_whose_gesture_has_ended() {
+    let host = FakeHost::new(&[("on", 0.0)]).modelled(Model::WhileOpen);
+    instant(&host, "on", 1.0);
+    host.process();
+    assert_eq!(host.get("on"), 0.0, "ended before the process step: never passed on");
+    host.set("on", 1.0);
+    host.process();
+    assert_eq!(host.get("on"), 0.0, "a set outside a gesture isn't passed on");
+}
+
+#[test]
+fn pw_hold_a_modelled_host_passes_on_the_last_set_rounded_to_its_steps() {
+    let host = FakeHost::new(&[("mode", 0.0)]).stepped(&[("mode", 4)]).modelled(Model::Echo);
+    host.begin("mode");
+    host.set("mode", 0.9);
+    host.set("mode", 0.3);
+    host.process();
+    assert_eq!(host.get("mode"), 0.25);
+    host.end("mode");
+}
+
+#[test]
+fn pw_hold_the_fake_host_shows_a_value_as_its_steps_round_it() {
+    let host = FakeHost::new(&[("mode", 0.0), ("mix", 0.5)]).stepped(&[("mode", 4)]).with(&[("mode", 0.25)]);
+    assert!(host.shows("mode", 0.3), "0.3 rounds to 0.25");
+    assert!(!host.shows("mode", 0.4));
+    assert!(host.shows("mix", 0.5));
+    assert!(!host.shows("mix", 0.51));
 }
