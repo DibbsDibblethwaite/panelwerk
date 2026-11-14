@@ -4,7 +4,7 @@ All notable changes to Panelwerk. Versions follow `CLAUDE.md`, Versions; a chang
 
 ## v0.4.0 (2026-11-14)
 
-*API agreed by Ian, 2026-11-14 (rule 2): in outline on board card CUBASE-FAMILY-PLAN (D1, "All six as recommended"), and as built, with `frame`'s answer and `take_open` added, on card PW-API-3 ("Agreed: tag v0.4.0"). The outline:, as Kör's `docs/proposals/cubase-family.md` §1 proposes it.*
+*API agreed by Ian, 2026-11-14 (rule 2): in outline on board card CUBASE-FAMILY-PLAN (D1, "All six as recommended"), and as built, with `frame`'s answer and `take_open` added, on card PW-API-3 ("Agreed: tag v0.4.0"). The outline is Kör's `docs/proposals/cubase-family.md` §1.*
 
 PW-HOLD: held edits, the cure for hosts that undo an edit the panel makes in one instant (a click on a switch or a mode button, a double-click), moved from Rödalog v2's `preset.rs` (B-PAR-11, proved in Cubase LE 16 on 2026-11-14), keyed by parameter string ID. The consumers' rule is their B-PNL-11. An addition (rule 12): a plugin that doesn't wire it in is unchanged.
 
