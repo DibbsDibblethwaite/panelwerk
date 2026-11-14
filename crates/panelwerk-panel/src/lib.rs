@@ -8,6 +8,8 @@
 //! - [`light`] and [`button`]: lights, button bodies, lit buttons, switches.
 //! - [`title`]: the red title strip.
 //! - [`help`]: the help line.
+//! - [`hold`]: held edits, a host's gesture kept open until the plugin has
+//!   the value, so an edit made in one instant survives every host.
 //! - [`zoom`]: the panel scaled as a whole, the window following, the menu.
 //! - [`settings`]: the settings file that remembers the last zoom.
 //!
@@ -33,6 +35,7 @@ use egui::{Color32, FontId, Id, Rect, Response};
 pub mod button;
 pub mod gesture;
 pub mod help;
+pub mod hold;
 pub mod knob;
 pub mod light;
 pub mod palette;
@@ -79,8 +82,8 @@ pub trait ParamHost {
     /// End the gesture.
     fn end(&self, id: &str);
     /// Whether the plugin has parameter `id` at `normalized`, as it will
-    /// hold it: what a held edit waits for before it is ended for the host
-    /// (PW-HOLD). By default, [`value`](Self::value) equals
+    /// hold it: what a held edit ([`hold::Held`]) waits for before it is ended
+    /// for the host (PW-HOLD). By default, [`value`](Self::value) equals
     /// `normalized`. A consumer whose parameters round a normalised value
     /// (a stepped or a float parameter's plain value) compares plain values
     /// instead, so an edit it has doesn't wait for a normalised value it

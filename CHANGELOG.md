@@ -2,6 +2,29 @@
 
 All notable changes to Panelwerk. Versions follow `CLAUDE.md`, Versions; a change to what a consumer shows (a word, a colour, a size) lists what changes on each consumer's panel.
 
+## v0.4.0 (2026-11-14, not yet tagged)
+
+*API agreed by Ian, 2026-11-14 (rule 2; board card CUBASE-FAMILY-PLAN, D1, "All six as recommended"), as Kör's `docs/proposals/cubase-family.md` §1 proposes it.*
+
+PW-HOLD: held edits, the cure for hosts that undo an edit the panel makes in one instant (a click on a switch or a mode button, a double-click), moved from Rödalog v2's `preset.rs` (B-PAR-11, proved in Cubase LE 16 on 2026-11-14), keyed by parameter string ID. The consumers' rule is their B-PNL-11. An addition (rule 12): a plugin that doesn't wire it in is unchanged.
+
+- `hold::Held`, with `new`, `begin`, `set`, `end`, `frame` and `close`. The panel keeps a host's gesture open until the plugin has the value last set in it, then ends it at the next `frame`. Gestures ended at one moment end together, once all their values have arrived. An edit ends anyway at `gesture::PENDING_FOR` if its value never arrives, and `close` ends every open edit. A second begin continues an open or waiting gesture, so the host never sees one begun twice. Begins nest: an instant edit inside a drag doesn't cut the drag off. An end too many does nothing. `frame` returns whether an edit still waits.
+- `ParamHost::shows(id, normalized)`: whether the plugin has the value, which is what a held edit waits for. It has a default (`value(id) == normalized`), so existing implementations are unchanged. A consumer may override it to compare plain values.
+- `panelwerk-testkit`: `Model` (`Echo`, `ReadBack`, `WhileOpen`) and `MODELS`, the three hosts of B-PNL-11, after Rödalog's `tests/vst3_host/model.rs`; `FakeHost::modelled` and `FakeHost::process`, a set reaching the plugin only as the model passes it on at a process step; `FakeHost`'s `shows` compares as its steps round. A `FakeHost` not modelled is unchanged.
+
+Wiring it in, for a consumer's editor (`hold`'s module doc has the example):
+
+- The `App` that lives as long as the window owns a `Held`.
+- The `ParamHost` given to the panel passes `begin`, `set` and `end` through `Held` to the adapter that talks to the framework. It may override `shows` with the plain comparison (`unmodulated_plain_value() == preview_plain(normalized)`).
+- `App::ui` calls `held.frame(&adapter, ui.input(|i| i.time))` before it draws the panel.
+- `App`'s `Drop` calls `held.close(&adapter)`: nice-plug-egui 0.6 drops the app with its window.
+- A panel that draws only when asked must ask for another frame (`ui.ctx().request_repaint()`) while `frame` returns `true`. Otherwise a waiting edit ends only at the next input. Rödalog v3 needed exactly this.
+
+What each consumer's panel shows on adopting: nothing changes (no word, colour or geometry). Once wired in, a click's or double-click's end reaches the host a frame or more later, and a drag's a frame later. Each is still one begin–end pair.
+
+- **Kör**, **Fläns**: their tasks CUBASE-K2 and CUBASE-F2 wire it in.
+- **Rödalog**: nothing (it uses only `panelwerk-text`; v3 keeps its own port of v2's code).
+
 ## v0.3.0 (2026-11-10)
 
 *API approved by Ian, 2026-11-10 (rule 2, PW-API-2), as built; Kör's panel adopted it after Ian's look at the screenshots (PW-6-LOOK).*
