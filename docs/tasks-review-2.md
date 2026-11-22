@@ -32,4 +32,4 @@ One minor version, one change at a time; each line needs the new tag, cut once `
 - **Proposal §6's no-colour test**: each consumer's adoption task.
 - **W-11's `comment-drift.sh` copies** (byte-identical in six projects; its test runs nowhere automatically): listed in one place when the tooling freeze is lifted; one shared copy is a family decision.
 
-About 0.6 now and 2.05–3.55 before v0.5.0 (3.55 with W-2 (a), as chosen), as the ranking gives them.
+About 0.6 now and 3.05–3.55 before v0.5.0 with W-2 (a), as chosen (the ranking's 2.05–3.55 spans W-2's options; W-2a's quarter day is inside W-2b's 1.5–2).
