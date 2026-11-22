@@ -532,3 +532,7 @@ Changed from §4's sketch:
 - **PW-API-2: the API as built** (rule 2): approve v0.3.0's API above, with its changes from §4's sketch, as v0.1.0's was (PW-API).
 - **The closest contrast** (rule 8): `DIMMED_TEXT` on `HOVER`, 4.74:1 against 4.5:1, as Kör's and Rödalog's tests have had it.
 - **PW-6's screenshots** of Kör's face, drill-down and a dimmed knob hovered, before and after, are in `C:\Users\dibbl\AudioDev\koer-palette\panelwerk-panel\` (`compare-*.png` side by side).
+
+## 11. The second review's answer (Ian, 2026-11-22, REVIEW-2-FINDINGS, "ok": (a) or yes in each point)
+
+The second review's findings for Panelwerk are in `docs/research/review-2-2026-11.md`; the tasks they became are in `docs/tasks-review-2.md`, with the decisions in full. In short: Klinga joins the consumer check and `--pins` (point 8: yes); held edits' nice-plug side becomes a small shared crate, `panelwerk-nice`, after a quarter-day check that it builds under each plugin's patched nice-plug (point 8 (a)), so Klinga's panel takes it instead of a fourth copy, and Rödalog's port retires to it at P; the comment fixes, with W-9's six tolerances accepted as "as achieved" (point 11: yes); every parked verdict as the review gave it (point 12 (a)), step 4 (Fläns on the shared panel) recorded as done and §8's GitHub line done (PW-REPO).
