@@ -71,7 +71,7 @@ pub fn frame(ctx: &Context, now: f64, events: Vec<Event>, run: impl FnMut(&mut U
 
 /// One frame of the test panel drawn through `edits` ([`HeldEdits::frame`]
 /// with [`draw`]) on `ctx` at `now` with `events`: whether it was drawn
-/// (not before `open`), and the frame's output. One closure for every
+/// (not before `open`), and the frame's output. One `draw` for every
 /// frame in a test binary, so one instantiation of the generic `frame`
 /// runs every path of it (llvm-cov counts a generic's regions by its best
 /// single instantiation).

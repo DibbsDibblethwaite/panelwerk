@@ -207,9 +207,9 @@ fn w_2b_hiding_the_window_hands_every_edit_open_or_waiting_to_be_ended_in_the_or
     assert_eq!(told.first().map(String::as_str), Some("begin on"), "{told:?}");
     assert!(!told.iter().any(|c| c.starts_with("end")), "both edits still open: {told:?}");
 
-    // The host hides the window (CLAP's `gui.hide`): the window's own hide
-    // is made, its error passed on, and both edits are handed over in one
-    // task, in the order begun, the host told nothing now.
+    // The host hides the window (CLAP's `gui.hide`): both edits are handed
+    // over in one task, in the order begun, the host told nothing now, and
+    // then the window's own hide is made, its error passed on.
     assert_eq!(p.handle().hide(&()), Err(std::fmt::Error));
     assert_eq!(p.calls(), ["hide, 1 queued"], "the edits handed on before the window's own hide");
     let task = p.queued.lock().unwrap().pop().expect("one task");
