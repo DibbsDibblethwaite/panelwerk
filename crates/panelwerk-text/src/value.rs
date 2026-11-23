@@ -24,13 +24,22 @@
 //! *as rounded*, so text read back shows the same way (999.5 Hz reads
 //! "1.00 kHz", 999.6 ms "1.00 s", and each read back reads the same).
 //!
-//! ```rust,ignore
-//! // A consumer's parameter (nice-plug):
-//! FloatParam::new("Mix", 0.5, FloatRange::Linear { min: 0.0, max: 1.0 })
-//!     .with_unit(" %")
-//!     .with_value_to_string(Arc::new(|v| value::percent(v, Sign::Unsigned)))
-//!     .with_string_to_value(Arc::new(value::parse_percent))
+//! A consumer's nice-plug parameter takes the two closures below; the
+//! example runs them alone, so it needs no nice-plug:
+//!
 //! ```
+//! use panelwerk_text::value::{self, Sign};
+//!
+//! let to_text = |v: f32| value::percent(v, Sign::Unsigned);
+//! let from_text = value::parse_percent;
+//! assert_eq!(to_text(0.5), "50.0");
+//! assert_eq!(from_text("50"), Some(0.5));
+//! ```
+//!
+//! They go to the parameter as `with_value_to_string(Arc::new(to_text))` and
+//! `with_string_to_value(Arc::new(from_text))`, after
+//! `FloatParam::new("Mix", 0.5, FloatRange::Linear { min: 0.0, max: 1.0 })
+//! .with_unit(" %")`.
 //!
 //! Nothing here runs on the audio thread (CLAUDE.md rule 3): each function
 //! allocates its `String`.

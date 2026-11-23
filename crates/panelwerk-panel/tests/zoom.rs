@@ -6,12 +6,21 @@
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-use egui::{pos2, vec2, Align2, Context, Id, PointerButton, Pos2, Rect, Sense, Ui, Vec2, ViewportCommand};
+use egui::{pos2, vec2, Align2, Context, Id, PointerButton, Rect, Sense, Ui, Vec2, ViewportCommand};
 use panelwerk_panel::palette::{CHOICE_TEXT, CHOSEN};
 use panelwerk_panel::settings;
 use panelwerk_panel::zoom::{self, Range, MENU_ROW};
 use panelwerk_panel::{font, title};
 use panelwerk_testkit::{FakeHost, Window};
+
+/// How far, in points, a window size the host was given back may differ
+/// from the size the test expects. Float rounding, not a standard: the size
+/// is carried through `f32` divisions and multiplications by the zoom (as
+/// `host_resizes` does), so it can differ from the expected whole number in
+/// the last bit. "As achieved" (rule 8; agreed by Ian, 2026-11-22,
+/// REVIEW-2-FINDINGS, point 11); it allows that rounding and nothing a
+/// reader could see.
+const SIZE_TOLERANCE: f32 = 0.01;
 
 /// Kör's range (B-PNL-6), as a consumer gives it.
 const KOER: Range = Range { min: 0.75, max: 3.0, menu: &[0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0] };
@@ -102,7 +111,7 @@ fn host_resizes(size: Vec2, from: f32, passes: usize) -> (Vec<f32>, Vec2, f32) {
 fn the_window_dragged_larger_scales_the_panel_and_the_choice_is_saved() {
     let (zooms, size, zoom) = host_resizes(vec2(780.0, 420.0), 1.0, 4);
     assert_eq!(zoom, 1.5);
-    assert!((size - vec2(780.0, 420.0)).length() < 0.01, "{size:?}");
+    assert!((size - vec2(780.0, 420.0)).length() < SIZE_TOLERANCE, "{size:?}");
     assert_eq!(zooms, [1.5], "the user chose it");
 }
 
@@ -115,7 +124,7 @@ fn off_the_aspect_ratio_or_the_range_the_window_is_brought_back() {
         (vec2(200.0, 100.0), vec2(390.0, 210.0)),
     ] {
         let (_, size, zoom) = host_resizes(asked, 1.0, 4);
-        assert!((size - want).length() < 0.01, "{asked:?}: {size:?}, zoom {zoom}");
+        assert!((size - want).length() < SIZE_TOLERANCE, "{asked:?}: {size:?}, zoom {zoom}");
         assert_eq!(BASE * zoom, want);
     }
 }
@@ -186,7 +195,6 @@ fn choose_holds_the_zoom_to_the_range() {
     let ctx = Context::default();
     zoom::choose(&ctx, &host, &KOER, 9.0);
     assert_eq!(*host.zooms.borrow(), [3.0]);
-    let _ = Pos2::ZERO;
 }
 
 // The settings file (Kör B-PNL-7, PW-8).

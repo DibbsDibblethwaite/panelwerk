@@ -1,5 +1,5 @@
 //! Panelwerk's panel layer: the look and the controls Ian Dilley's plugins
-//! (Rödalog, Kör, Fläns) share, drawn with egui 0.37.0.
+//! (Rödalog, Kör, Fläns, Klinga) share, drawn with egui 0.37.0.
 //!
 //! - [`palette`]: the family's colours and the contrast test.
 //! - [`gesture`]: how knobs and switches are worked: drag, fine drag,

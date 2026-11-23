@@ -12,6 +12,17 @@ use panelwerk_panel::palette::*;
 use panelwerk_panel::Control;
 use panelwerk_testkit::{FakeHost, Window};
 
+/// How far, in points, a text's ink may sit from where the geometry places
+/// it. "As achieved" (rule 8; agreed by Ian, 2026-11-22, REVIEW-2-FINDINGS,
+/// point 11), not a standard and not any consumer's rule: egui's
+/// `visual_bounding_rect` is the box of the glyphs' ink, which starts a
+/// little inside the layout box (a glyph's side bearing) and, vertically,
+/// is not centred on it (the font's ascent and descent). So an exact
+/// comparison would fail on the font, not on the placement. It allows that
+/// much, which is less than one glyph's width: a text a letter out of
+/// place, or on the wrong side of its anchor, still fails.
+const TEXT_PLACEMENT_TOLERANCE: f32 = 1.5;
+
 /// Kör's main knob (B-PNL-1): radius 15, its arc 30 % further out.
 const KOER: Geometry =
     Geometry { radius: 15.0, arc_radius: 19.5, arc_width: 2.7, pointer: (4.5, 13.0), pointer_width: 2.0 };
@@ -182,7 +193,11 @@ fn the_inline_knob_its_name_at_the_left_and_no_value() {
         .into_iter()
         .find_map(|s| if let Shape::Text(t) = s { Some(t.visual_bounding_rect()) } else { None })
         .unwrap();
-    assert!((name.left() - rect.left()).abs() < 1.5 && (name.center().y - rect.center().y).abs() < 1.5, "{name:?}");
+    assert!(
+        (name.left() - rect.left()).abs() < TEXT_PLACEMENT_TOLERANCE
+            && (name.center().y - rect.center().y).abs() < TEXT_PLACEMENT_TOLERANCE,
+        "{name:?}"
+    );
     assert!(w.shapes().iter().any(|s| matches!(s, Shape::Circle(c) if c.center == centre && c.radius == 7.5)));
     w.drag(rect.center(), &[vec2(0.0, -20.0)], Modifiers::NONE, &mut run);
     assert!((host.get("mix") - 0.6).abs() < 1e-5);

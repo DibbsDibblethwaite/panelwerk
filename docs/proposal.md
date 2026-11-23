@@ -1,6 +1,6 @@
 # Panelwerk: a proposal (for Ian)
 
-*2026-11-10. Ian's decision of the same day (Rödalog's `docs/spec.md` §1, "Family library: Panelwerk") is the brief: a library beside DSPWerkbank, in two layers, text and conventions (`std` only) and the panel (egui); consumers pin tags; every release runs all three consumers' checks; one family update moves the three pins together; Rödalog's extras layer on top. The four steps are agreed (§7). This proposal says what goes where, sketches each layer's API, and asks what is still open (§8). Step 1, the text layer, is built (v0.1.0, §9); step 2, the palette and basic widgets, is built (v0.3.0, §10).*
+*2026-11-10. Ian's decision of the same day (Rödalog's `docs/spec.md` §1, "Family library: Panelwerk") is the brief: a library beside DSPWerkbank, in two layers, text and conventions (`std` only) and the panel (egui); consumers pin tags; every release runs all three consumers' checks; one family update moves the three pins together; Rödalog's extras layer on top. The four steps are agreed (§7). This proposal says what goes where, sketches each layer's API, and asks what is still open (§8). Step 1, the text layer, is built (v0.1.0, §9); step 2, the palette and basic widgets, is built (v0.3.0, §10); step 4, Fläns's M7 on the shared panel, is done (`flaens-gui` depends on `panelwerk-panel`); held edits (PW-HOLD) were added in v0.4.0 (§12); step 3, Rödalog's extras, waits for its milestone P (PW-10). Klinga, a fourth plugin, has joined as a consumer of the text layer (§11). The sections below are the plan as written on 2026-11-10 (three plugins) and are not rewritten; where they differ from what was built, §9, §10 and §12 and `CHANGELOG.md` win.*
 
 ## 1. What the three plugins have today
 
@@ -283,7 +283,7 @@ Sizes in developer-days (a person's time). Agents have run far faster: SIMD-0 �
 | **1. The text layer** | `sync` (names, IDs, the const tables), `value` (the styles in §3, the parsers), `ids`; frozen tables; `consumers.sh` and the licence notices; tag v0.1.0. Then the family update: **Kör** (its M6.0 becomes this: "1/1 dotted" …, IDs unchanged), **Fläns** (the same names, once `m6-2` is merged), **Rödalog** (its names unchanged; its formatters swapped, every value-text test unchanged) | every consumer's names and value text from Panelwerk, their tests green, one pin | library 1.5, adoptions 0.5 each: **3.0** |
 | **2. Palette and basic widgets, from Kör's panel** | `palette`, `ParamHost`, `gesture`, `knob` (Kör's look, Rödalog's details if PW-6), `light`, `button`, `title`, `help`, `zoom`, `settings`, the test kit; Kör's panel tests moved with them, green throughout; v0.2.0. **Kör adopts**: its `palette.rs`, `widgets.rs`, `zoom.rs`, `settings.rs` replaced by the library, its layout, hints and mode logic kept | Kör's panel on Panelwerk, every Kör panel test green, a screenshot for Ian | library 3.0, Kör 1.0: **4.0** |
 | **3. Rödalog's extras, Rödalog adopts** | the off-by-default options (bipolar, dead half, further arcs, custom lights, LED rows, the drop-down list with per-choice markers); v0.3.0. **Rödalog adopts**: its `Host` on `ParamHost`, its knob, switch and list on the shared ones, Morph drawn through arcs, its palette constants replaced | Rödalog's panel on Panelwerk, every `roedalog-gui` test green, a screenshot for Ian | library 2.0, Rödalog 2.5: **4.5** |
-| **4. Fläns M7 on Panelwerk** | Fläns's M7 (3.0 days planned) builds on the shared panel rather than copying Kör's: M7.1 shrinks to the layout and its tests; anything it finds missing reported and added here first (rule 13) | Fläns's panel, M7's own acceptance | M7 itself about **2.5** (from 3.0), and **0.5** in the library for what it finds |
+| **4. Fläns M7 on Panelwerk** | Fläns's M7 (3.0 days planned) builds on the shared panel rather than copying Kör's: M7.1 shrinks to the layout and its tests; anything it finds missing reported and added here first (rule 13) | Fläns's panel, M7's own acceptance | M7 itself about **2.5** (from 3.0), and **0.5** in the library for what it finds. **Done** (2026-11-22, the second review: `flaens-gui` builds on `panelwerk-panel`) |
 
 About **14.5 developer-days** in all, of which 2.5 is Fläns's M7 already planned. Steps 2 and 4 depend on step 1 only through the tag; step 3 can come after step 4 (PW-10).
 
@@ -308,7 +308,7 @@ Each with a recommendation; "as recommended" answers all.
 
 ### For Ian to do
 
-- Make the private GitHub repository `DibbsDibblethwaite/panelwerk` and push `main` (`git remote add origin …; git push -u origin main`). Consumers name the library by that URL, and `consumers.sh` patches it.
+- Make the private GitHub repository `DibbsDibblethwaite/panelwerk` and push `main`. **Done** (PW-REPO): consumers name the library by that URL, and `consumers.sh` patches it.
 
 ## Answers (Ian, 2026-11-10, on the Decisions board)
 
@@ -412,7 +412,7 @@ Each consumer's own words stay its own (rule 1): Rödalog's "Off", "Exponential"
 
 ## 10. Step 2 as built (v0.3.0)
 
-`panelwerk-panel` and `panelwerk-testkit` v0.3.0, 2026-11-10, from Kör's panel (its tests moved with it) and Rödalog's knob details (PW-6). v0.2.0 having gone to PW-15, step 2 is v0.3.0 and step 3 will be v0.4.0. The API, exactly:
+`panelwerk-panel` and `panelwerk-testkit` v0.3.0, 2026-11-10, from Kör's panel (its tests moved with it) and Rödalog's knob details (PW-6). v0.2.0 having gone to PW-15, step 2 is v0.3.0. Step 3 is not built; v0.4.0 went to held edits (PW-HOLD, §12). The API, exactly:
 
 ```rust
 // panelwerk_panel
@@ -536,3 +536,7 @@ Changed from §4's sketch:
 ## 11. The second review's answer (Ian, 2026-11-22, REVIEW-2-FINDINGS, "ok": (a) or yes in each point)
 
 The second review's findings for Panelwerk are in `docs/research/review-2-2026-11.md`; the tasks they became are in `docs/tasks-review-2.md`, with the decisions in full. In short: Klinga joins the consumer check and `--pins` (point 8: yes); held edits' nice-plug side becomes a small shared crate, `panelwerk-nice`, after a quarter-day check that it builds under each plugin's patched nice-plug (point 8 (a)), so Klinga's panel takes it instead of a fourth copy, and Rödalog's port retires to it at P; the comment fixes, with W-9's six tolerances accepted as "as achieved" (point 11: yes); every parked verdict as the review gave it (point 12 (a)), step 4 (Fläns on the shared panel) recorded as done and §8's GitHub line done (PW-REPO).
+
+## 12. Held edits as built (v0.4.0)
+
+v0.4.0 (2026-11-14, PW-HOLD) is not one of the four steps: it moved Rödalog v2's held edits, a host's gesture kept open until the plugin has the value, into `panelwerk-panel` for the Cubase fixes (agreed on cards CUBASE-FAMILY-PLAN and PW-API-3). Its API as built, in outline: `hold::Held` with `new`, `begin`, `set`, `end`, `frame`, `close` and `take_open`; `ParamHost::shows(id, normalized)`, with a default; and the testkit's `Model` (`Echo`, `ReadBack`, `WhileOpen`), `MODELS`, `FakeHost::modelled` and `FakeHost::process`. What each does, how a consumer wires it in and what it changes on each panel (nothing) are in `CHANGELOG.md`, v0.4.0, and `hold`'s module doc; they aren't copied here, so there is one place to keep true.
