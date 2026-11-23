@@ -378,7 +378,7 @@ fn every_set_inside_its_gesture(gestures: &[String]) {
 
 /// W-3b: Kör's Rate knob, which keeps one widget ID but draws Sync Rate when
 /// Sync is on. A press on the knob, a move of 20 points up while it is
-/// `first`'s, then `then`'s for a second move of 20 and the release, then
+/// Rate's, then Sync Rate's for a second move of 20 and the release, then
 /// an idle pass; `frame` runs at the start of every pass (held edits).
 fn drag_while_the_knob_changes_parameter(host: &dyn panelwerk_panel::ParamHost, frame: &mut dyn FnMut(&Ui)) {
     drag_in_while_the_knob_changes_parameter(&mut Window::new(vec2(300.0, 120.0)), host, frame);
