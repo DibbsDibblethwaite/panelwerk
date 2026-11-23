@@ -37,12 +37,12 @@ use crate::palette::{BORDER, CHOICE_TEXT, CHOSEN, HOVER, SECTION};
 
 /// A consumer's zoom range and its menu's sizes (Kör's 75 … 300 %).
 ///
-/// `min <= max` and neither NaN, or [`Range::clamp`], which every zoom path
-/// calls, panics on the GUI thread, inside the host (`f32::clamp`'s
-/// precondition). [`Range::new`] also refuses infinite bounds, an empty
-/// menu (whose [`menu`](fn@menu) would have no last row) and a menu not
-/// strictly smallest first. `Range::new` is the only way to make one
-/// (W-6b), so a bad `const` fails to compile.
+/// [`Range::new`], the only way to make one (W-6b), guarantees `min <= max`
+/// with both finite, which [`Range::clamp`], called by every zoom path,
+/// relies on: `f32::clamp` panics otherwise, which would be on the GUI
+/// thread, inside the host. `new` also refuses an empty menu (whose
+/// [`menu`](fn@menu) would have no last row) and a menu not strictly
+/// smallest first. A bad `const` fails to compile.
 ///
 /// Why private fields read by [`Range::min`], [`Range::max`] and
 /// [`Range::menu`], not `#[non_exhaustive]` with the fields public (the
