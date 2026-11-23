@@ -381,13 +381,22 @@ fn every_set_inside_its_gesture(gestures: &[String]) {
 /// `first`'s, then `then`'s for a second move of 20 and the release, then
 /// an idle pass; `frame` runs at the start of every pass (held edits).
 fn drag_while_the_knob_changes_parameter(host: &dyn panelwerk_panel::ParamHost, frame: &mut dyn FnMut(&Ui)) {
+    drag_in_while_the_knob_changes_parameter(&mut Window::new(vec2(300.0, 120.0)), host, frame);
+}
+
+/// The same, in window `w`, so a later drag in it sees whatever the first
+/// left in egui's memory.
+fn drag_in_while_the_knob_changes_parameter(
+    w: &mut Window,
+    host: &dyn panelwerk_panel::ParamHost,
+    frame: &mut dyn FnMut(&Ui),
+) {
     let param = std::cell::Cell::new("rate");
     let mut run = |ui: &mut Ui| {
         frame(ui);
         let r = ui.interact(KNOB, Id::unique("rate knob"), Sense::click_and_drag());
         gesture::knob(ui, host, &r, param.get());
     };
-    let mut w = Window::new(vec2(300.0, 120.0));
     let press = |at, pressed| egui::Event::PointerButton {
         pos: at,
         button: egui::PointerButton::Primary,
@@ -483,4 +492,59 @@ fn w_3b_through_held_edits_under_each_modelled_host_the_drag_stays_rates() {
         assert!((host.get("rate") - 40.0 / DRAG_RANGE).abs() < 1e-5, "{model:?}: {}", host.get("rate"));
         assert_eq!(host.get("sync_rate"), 0.0, "{model:?}");
     }
+}
+
+#[test]
+fn w_3b_the_next_drag_in_the_same_window_begins_on_the_parameter_now_drawn() {
+    // As the test above, in the window the first drag ran in: nothing it
+    // left in egui's memory (its open-drag record, its drag position) sends
+    // the second drag to Rate, or starts it from Rate's value.
+    let host = rate_host();
+    let mut w = Window::new(vec2(300.0, 120.0));
+    drag_in_while_the_knob_changes_parameter(&mut w, &host, &mut |_| {});
+    host.take();
+    let mut run = |ui: &mut Ui| {
+        let r = ui.interact(KNOB, Id::unique("rate knob"), Sense::click_and_drag());
+        gesture::knob(ui, &host, &r, "sync_rate");
+    };
+    w.drag(KNOB.center(), &[vec2(0.0, -20.0)], Modifiers::NONE, &mut run);
+    one_drag(&host.take(), "sync_rate");
+    assert!((host.get("sync_rate") - 20.0 / DRAG_RANGE).abs() < 1e-5, "{}", host.get("sync_rate"));
+    assert!((host.get("rate") - 40.0 / DRAG_RANGE).abs() < 1e-5, "Rate as the first drag left it: {}", host.get("rate"));
+}
+
+#[test]
+fn w_3b_a_knob_not_drawn_as_its_drag_starts_sends_nothing() {
+    // The knob is pressed, then not drawn on the pass where egui decides the
+    // drag has started, so it never sees `drag_started` and no gesture is
+    // begun. Drawn again for the rest of the drag, it is dragged with no
+    // gesture open: the whole drag is dropped (no begin, set or end, the
+    // value unchanged) rather than send a set outside any gesture.
+    let host = rate_host();
+    let shown = std::cell::Cell::new(true);
+    let mut run = |ui: &mut Ui| {
+        if shown.get() {
+            let r = ui.interact(KNOB, Id::unique("rate knob"), Sense::click_and_drag());
+            gesture::knob(ui, &host, &r, "rate");
+        }
+    };
+    let mut w = Window::new(vec2(300.0, 120.0));
+    let press = |at, pressed| egui::Event::PointerButton {
+        pos: at,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::NONE,
+    };
+    let at = KNOB.center();
+    w.pass(vec![egui::Event::PointerMoved(at)], Modifiers::NONE, &mut run);
+    w.pass(vec![press(at, true)], Modifiers::NONE, &mut run);
+    shown.set(false);
+    w.pass(vec![egui::Event::PointerMoved(at - vec2(0.0, 20.0))], Modifiers::NONE, &mut run);
+    shown.set(true);
+    w.pass(vec![egui::Event::PointerMoved(at - vec2(0.0, 40.0))], Modifiers::NONE, &mut run);
+    w.pass(vec![egui::Event::PointerMoved(at - vec2(0.0, 60.0))], Modifiers::NONE, &mut run);
+    w.pass(vec![press(at - vec2(0.0, 60.0), false)], Modifiers::NONE, &mut run);
+    w.idle(&mut run);
+    assert_eq!(host.take(), Vec::<String>::new());
+    assert_eq!(host.get("rate"), 0.0);
 }
