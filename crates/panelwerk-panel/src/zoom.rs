@@ -37,10 +37,12 @@ use crate::palette::{BORDER, CHOICE_TEXT, CHOSEN, HOVER, SECTION};
 
 /// A consumer's zoom range and its menu's sizes (Kör's 75 … 300 %).
 ///
-/// `min <= max`, both finite, and a menu of at least one size, smallest
-/// first: otherwise [`Range::clamp`], which every zoom path calls, panics
-/// on the GUI thread, inside the host. Make it with [`Range::new`], which
-/// checks, so a bad `const` fails to compile; a struct literal isn't
+/// `min <= max` and neither NaN, or [`Range::clamp`], which every zoom path
+/// calls, panics on the GUI thread, inside the host (`f32::clamp`'s
+/// precondition). [`Range::new`] also refuses infinite bounds, an empty
+/// menu and a menu not strictly smallest first: none of these panics (an
+/// empty menu draws nothing, [`menu`](fn@menu)), but each is a typo. Make it with
+/// `Range::new`, so a bad `const` fails to compile; a struct literal isn't
 /// checked (W-6).
 ///
 /// ```

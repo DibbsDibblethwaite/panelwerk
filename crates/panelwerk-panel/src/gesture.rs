@@ -39,11 +39,19 @@ pub const PENDING_FOR: f64 = 0.5;
 /// A drag's gesture is ended for the host when egui stops it, even if this
 /// knob is no longer drawn then (a preset, automation or a mode change hid
 /// it mid-drag): the next call of `knob` or [`toggle_on_click`] for any
-/// control in the window ends it, through that call's `host` (so a window
-/// gives every control the same one). A panel that, mid-drag, stops drawing
-/// every control these functions work (its window closing) ends the gesture
-/// itself: [`crate::hold::Held::close`] or [`crate::hold::Held::take_open`]
-/// with held edits, else the consumer's own close (W-3).
+/// control in the window ends it, through that call's `host` (W-3).
+///
+/// **Every control in a window must be given the same host**: a lost
+/// drag's end goes through the host of whichever control is drawn next, so
+/// with two hosts one could get the drag's `begin` and sets and the other
+/// its `end`.
+///
+/// A drag still open when the window closes, or when nothing these
+/// functions work is drawn again, isn't ended here: the record of open
+/// drags is private. With held edits, [`crate::hold::Held::close`] or
+/// [`crate::hold::Held::take_open`] ends it; without them, only a consumer
+/// whose own `ParamHost` tracks the begins it hasn't seen ended can end it
+/// at the close.
 pub fn knob(ui: &Ui, host: &dyn ParamHost, response: &Response, param: &str) {
     knob_drag(ui, host, response, param);
     end_lost_drags(ui, host);
@@ -76,6 +84,10 @@ fn knob_drag(ui: &Ui, host: &dyn ParamHost, response: &Response, param: &str) {
         ui.data_mut(|d| d.insert_temp(dragged, to));
         set(ui, host, param, to);
     }
+    // The knob's own end. With `end_lost_drags` after it in `knob`, which
+    // finds this widget no longer dragged in the same call, deleting this
+    // branch would change nothing a test sees; it is kept so the knob ends
+    // its own drag, not by way of the guard for lost ones.
     if response.drag_stopped() {
         end_drag(ui, host, response.id);
     }
@@ -119,7 +131,9 @@ fn open_drags_id() -> Id {
 /// A click on `response` toggles `param` (an Off/On or two-way parameter),
 /// from its [`latest`] value, as one gesture.
 ///
-/// Like [`knob`], it ends a knob drag lost when its knob was hidden.
+/// Like [`knob`], it ends a knob drag lost when its knob was hidden,
+/// through this call's `host`: every control in a window must be given the
+/// same host ([`knob`] says why).
 pub fn toggle_on_click(ui: &Ui, host: &dyn ParamHost, response: &Response, param: &str) {
     end_lost_drags(ui, host);
     if response.clicked() {

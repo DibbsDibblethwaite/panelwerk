@@ -70,7 +70,9 @@
 //!   new edit of that parameter before then (a second drag) would continue
 //!   it, making the two one undo step in the host;
 //! - the `App` calls [`Held::frame`] with egui's input time before it draws
-//!   the panel, every frame: only `frame` ends an edit for the host, so
+//!   the panel, every frame: only `frame` ends an edit for the host while
+//!   the window is open ([`Held::close`] and [`Held::take_open`] only as it
+//!   goes), so
 //!   debug builds panic at an end made before any `frame`, and its answer
 //!   is `#[must_use]` (below, a panel that draws only when asked; W-3);
 //! - the edits still open end when the window goes. Where the app is made
@@ -256,12 +258,12 @@ impl Held {
     /// host. An end with no gesture open does nothing.
     ///
     /// Debug builds panic if [`Held::frame`] has never run: only `frame`
-    /// ends an edit for the host (W-3).
+    /// ends an edit for the host while the window is open (W-3).
     pub fn end(&self, id: &str) {
         let mut state = self.state.borrow_mut();
         debug_assert!(
             state.framed,
-            "Held::end before any Held::frame: call frame at the start of every frame, or no edit ever ends for the host"
+            "Held::end before any Held::frame: call frame at the start of every frame, or no edit ends for the host while the window is open"
         );
         let at = state.now;
         if let Some((_, gesture)) = state.gestures.iter_mut().find(|(p, _)| p == id) {
