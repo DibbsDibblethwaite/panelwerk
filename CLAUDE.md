@@ -4,18 +4,20 @@ Panelwerk is the shared look and conventions of Ian Dilley's audio plugins, MIT 
 
 ## Consumers
 
-| Consumer | Where | What it will use | How it depends |
+| Consumer | Where | What it uses | How it depends |
 | --- | --- | --- | --- |
-| **Rödalog** (Nord Lead 2X synth) | `~/code/roedalog`, branch `v3` | the text layer (step 1); the shared panel base, its Morph arcs, modulation rings and `Host` layered on top (step 3) | by pinned git tag, with a commented `[patch]` path entry in its `Cargo.toml`, as DSPWerkbank's consumers |
-| **Kör** (Juno-60 chorus) | `~/code/koer`, `main` | the text layer (step 1); the palette and basic widgets, which come from its panel (step 2) | the same |
-| **Fläns** (Electric Mistress flanger) | `~/code/flaens` | the text layer (step 1); its M7 panel built on the shared one (step 4) | the same |
+| **Rödalog** (Nord Lead 2X synth) | `~/code/roedalog`, branch `v3` | the text layer (step 1); the shared panel base, its Morph arcs, modulation rings and `Host` layered on top follow at its milestone P (step 3) | by pinned git tag, with a commented `[patch]` path entry in its `Cargo.toml`, as DSPWerkbank's consumers |
+| **Kör** (Juno-60 chorus) | `~/code/koer`, `main` | the text layer; the panel layer, the test kit and held edits (`hold`), all v0.4.0 | the same |
+| **Fläns** (Electric Mistress flanger) | `~/code/flaens` | the text layer; the panel layer, the test kit and held edits (`hold`), all v0.4.0 | the same |
+| **Klinga** (diffuseur effect) | `~/code/klinga`, `main` | the text layer (value text, parsers, ID convention); its panel (M6) will take the panel layer and `panelwerk-nice` (W-2) | by pinned git tag (v0.4.0), with a commented `[patch]` path entry in its `Cargo.toml`, as the others |
 
-None depends on it yet. **A change must keep every consumer's displayed words and look as they are**, unless the change is meant to alter them (rule 6). Before committing a change to anything a consumer uses, run `./scripts/consumers.sh` (rule 14), which never touches a consumer's tree.
+**Four plugins depend on it, all pinning v0.4.0.** **A change must keep every consumer's displayed words and look as they are**, unless the change is meant to alter them (rule 6). Before committing a change to anything a consumer uses, run `./scripts/consumers.sh` (rule 14), which never touches a consumer's tree.
 
 ## Layout
 
 - `crates/panelwerk-text`: the text and conventions. **Std only**: no dependencies (`tests/manifest.rs` checks).
 - `crates/panelwerk-panel`: the panel. **egui**, at exactly the version every consumer's nice-plug-egui uses (`=0.37.0`, nice-plug-egui 0.6.0 on nice-plug 0.4.2; PW-13), and **serde_json** for the settings file (PW-8), and never nice-plug or nice-plug-egui, which each consumer vendors and patches for itself (`tests/manifest.rs` checks). It reaches the plugin only through the host traits the consumer implements (`ParamHost`, `zoom::ZoomHost`).
+- `crates/panelwerk-nice` (**to be built**, task W-2b; Ian, 2026-11-23, PW-BUILT, point 1 (a)): the held edits' nice-plug side (the `ParamHost` adapter over `ParamPtr`, `shows` with plain values, the close-time hand-off), shared by the plugins instead of a copy in each. **The named exception to the two rules above, for this crate only:** it may depend on nice-plug (the panel crates still never do: `tests/manifest.rs` keeps checking them), and `unsafe` is allowed in the adapter's one module and nowhere else (rule 15). It is not a member until it is built.
 - `crates/panelwerk-testkit`: dev-only (PW-9), for the panel's tests and each consumer's: a fake host and a headless window. egui (with its fonts) and the panel only.
 
 ## Commands
@@ -24,7 +26,8 @@ None depends on it yet. **A change must keep every consumer's displayed words an
 ./scripts/coverage.sh          # all tests + 100 % coverage; --html for a report
 cargo test --workspace --doc   # the API's examples
 ./scripts/consumers.sh         # rule 14: each consumer built against this checkout, its full hook; non-zero naming any that fail
-./scripts/consumers.sh --pins  # each consumer's pinned tag; non-zero unless all three pin the same
+./scripts/consumers.sh Klinga  # one consumer alone (names exact; one not in the list exits 2); its last line says a tag needs the run with none
+./scripts/consumers.sh --pins  # each consumer's pinned tag; non-zero unless every consumer's pin is read and all are the same one (a pin it can't read fails, named)
 ```
 
 `consumers.sh` works as DSPWerkbank's (its header says how): a clone of each consumer's HEAD under `target/consumers/`, this checkout patched in from a directory above, the consumer's tree never touched. A consumer is listed in it as it adopts Panelwerk.
@@ -45,13 +48,17 @@ cargo test --workspace --doc   # the API's examples
 12. **Additions, off by default.** What a consumer needs is added as a new option, field or function whose default is today's behaviour, so every other consumer is unaffected even after it moves to the new version. A breaking change is the exception and needs Ian's agreement.
 13. **One library change at a time**, each by its own agent, test first, through this hook. An agent working on a consumer never edits the library from inside that consumer's repository; it reports what it needs, and the change is scheduled here.
 14. **The consumer check before every tag**: `scripts/consumers.sh` builds every consumer against this checkout and runs its full hook; a tag is cut only when every consumer passes, its words and look unchanged unless the change is meant to alter them (rule 6).
-15. **`unsafe`**: none (`#![forbid(unsafe_code)]` in every crate).
+15. **`unsafe`**: none (`#![forbid(unsafe_code)]` in every crate). The one exception, once `panelwerk-nice` is built (Ian, 2026-11-23, PW-BUILT, point 1 (a)): the adapter's single module there, the same framework calls Kör and Fläns make in their own copies; no other module or crate.
+
+## Tasks
+
+The second review's tasks (Ian, 2026-11-22, REVIEW-2-FINDINGS) are in `docs/tasks-review-2.md`: read it for what is open and what comes next.
 
 ## Versions and the family update
 
 Semantic versioning, one version for every crate, tags `vMAJOR.MINOR.PATCH` on `main`, cut only when the hook and the consumer check have passed; a tag is never moved or deleted. While the version is 0.x, a minor bump may break the API or change what a consumer shows (listed in `CHANGELOG.md`); a patch changes neither.
 
-**One family update moves all three consumers' pins together** (Ian, 2026-11-10): after a tag, one agent moves Rödalog's, Kör's and Fläns's pins to it, one consumer after another, each in its own commit through its own hook, and `./scripts/consumers.sh --pins` then shows one tag. The steps are in `docs/proposal.md` §5.
+**One family update moves every consumer's pins together** (Ian, 2026-11-10): after a tag, one agent moves Rödalog's, Kör's, Fläns's and Klinga's pins to it, one consumer after another, each in its own commit through its own hook, and `./scripts/consumers.sh --pins` then shows one tag. The steps are in `docs/proposal.md` §5.
 
 ## Git
 
