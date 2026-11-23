@@ -11,10 +11,22 @@
 //! points ([`egui::ViewportCommand::InnerSize`]), which egui-baseview
 //! multiplies by the zoom: the allowed size nearest the one asked for.
 //!
+//! That is egui-baseview's model, and it is all the tests here check. Under
+//! VST3 in Cubase LE 16 the size also needs three framework patches, which
+//! each consumer carries in its own vendored copy, not here (W-12): the
+//! panel's resize request reaching the host (Rödalog's patch 10), the
+//! view taking the host's scale factor before `attached` (patch 12), and
+//! baseview's `WM_PAINT` leaving the whole window valid (patch 13), all in
+//! Rödalog's `vendor/PATCHES.md`. Kör and Fläns carry all three (their
+//! `vendor/PATCHES.md`, Changes 4 to 6, read 2026-11-23); Klinga, with no
+//! editor yet, carries none of them (its Changes 1 to 3). A consumer that
+//! adopts `follow` without them passes every test here and can still
+//! resize wrongly in Cubase.
+//!
 //! ```
 //! use panelwerk_panel::zoom::Range;
 //!
-//! const KOER: Range = Range { min: 0.75, max: 3.0, menu: &[0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0] };
+//! const KOER: Range = Range::new(0.75, 3.0, &[0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0]);
 //! assert_eq!(KOER.clamp(5.0), 3.0);
 //! ```
 
@@ -25,11 +37,17 @@ use crate::palette::{BORDER, CHOICE_TEXT, CHOSEN, HOVER, SECTION};
 
 /// A consumer's zoom range and its menu's sizes (Kör's 75 … 300 %).
 ///
+/// `min <= max`, both finite, and a menu of at least one size, smallest
+/// first: otherwise [`Range::clamp`], which every zoom path calls, panics
+/// on the GUI thread, inside the host. Make it with [`Range::new`], which
+/// checks, so a bad `const` fails to compile; a struct literal isn't
+/// checked (W-6).
+///
 /// ```
 /// use panelwerk_panel::egui::vec2;
 /// use panelwerk_panel::zoom::Range;
 ///
-/// let r = Range { min: 0.75, max: 3.0, menu: &[1.0, 2.0] };
+/// let r = Range::new(0.75, 3.0, &[1.0, 2.0]);
 /// assert_eq!(r.for_size(vec2(780.0, 420.0), vec2(520.0, 280.0)), 1.5);
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -43,6 +61,38 @@ pub struct Range {
 }
 
 impl Range {
+    /// The range from `min` to `max`, with `menu`'s sizes: refused, by a
+    /// panic, unless `min <= max`, both finite, and `menu` has at least one
+    /// size, smallest first. In a `const` the refusal is a compile error,
+    /// so a typo in a consumer's range never reaches a host (W-6).
+    ///
+    /// ```
+    /// use panelwerk_panel::zoom::Range;
+    ///
+    /// const FLAENS: Range = Range::new(0.75, 3.0, &[0.75, 1.0, 1.5, 2.0, 3.0]);
+    /// assert_eq!(FLAENS.clamp(0.5), 0.75);
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use panelwerk_panel::zoom::Range;
+    ///
+    /// // min above max: refused as the crate compiles.
+    /// const _: Range = Range::new(3.0, 0.75, &[1.0]);
+    /// ```
+    pub const fn new(min: f32, max: f32, menu: &'static [f32]) -> Range {
+        assert!(min.is_finite() && max.is_finite(), "a zoom range's min and max must be finite");
+        assert!(min <= max, "a zoom range needs min <= max");
+        assert!(!menu.is_empty(), "a zoom range's menu needs at least one size");
+        let mut k = 1;
+        while k < menu.len() {
+            // `>`, not `>=`: a size twice is a typo, and a NaN compares
+            // false, so it's refused too.
+            assert!(menu[k] > menu[k - 1], "a zoom range's menu must go smallest first");
+            k += 1;
+        }
+        Range { min, max, menu }
+    }
+
     /// `zoom` within the range; anything not a number is 100 %.
     pub fn clamp(&self, zoom: f32) -> f32 {
         if zoom.is_nan() {
@@ -144,7 +194,9 @@ pub fn menu_row(at: Pos2, k: usize) -> Rect {
 /// menu (not the right-click that opened it). Run once a pass, after the
 /// controls, so it is drawn over them.
 pub fn menu(ctx: &Context, host: &dyn ZoomHost, range: &Range, at: Pos2) {
-    if !ctx.data(|d| d.get_temp::<bool>(menu_id())).unwrap_or(false) {
+    // An empty menu (a literal that bypassed `Range::new`) has no last row:
+    // nothing to draw, rather than an underflow on the GUI thread (W-6).
+    if range.menu.is_empty() || !ctx.data(|d| d.get_temp::<bool>(menu_id())).unwrap_or(false) {
         return;
     }
     let current = ctx.zoom_factor();
