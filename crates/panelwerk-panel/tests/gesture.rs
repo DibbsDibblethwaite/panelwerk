@@ -206,3 +206,152 @@ fn hot_is_hovered_or_dragged() {
     assert!(!hots[0]);
     assert!(hots[1..].iter().all(|h| *h), "{hots:?}");
 }
+
+/// W-3: a press on the knob, a drag of `moves`, the knob hidden (`shown`
+/// false) from the pass before the release, then `after` idle passes. The
+/// panel draws the switch throughout, as a panel draws its other controls.
+fn drag_then_hide(host: &FakeHost, moves: usize, after: usize) {
+    let shown = std::cell::Cell::new(true);
+    let mut run = |ui: &mut Ui| {
+        if shown.get() {
+            let r = ui.interact(KNOB, Id::unique("knob"), Sense::click_and_drag());
+            gesture::knob(ui, host, &r, "mix");
+        }
+        let s = ui.interact(SWITCH, Id::unique("switch"), Sense::click());
+        gesture::toggle_on_click(ui, host, &s, "on");
+    };
+    let mut w = Window::new(vec2(300.0, 120.0));
+    let button = |pos, pressed| egui::Event::PointerButton {
+        pos,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::NONE,
+    };
+    let mut at = KNOB.center();
+    w.pass(vec![egui::Event::PointerMoved(at)], Modifiers::NONE, &mut run);
+    w.pass(vec![button(at, true)], Modifiers::NONE, &mut run);
+    for _ in 0..moves {
+        at.y -= 5.0;
+        w.pass(vec![egui::Event::PointerMoved(at)], Modifiers::NONE, &mut run);
+    }
+    // A preset, automation or a mode change hides the knob mid-drag.
+    shown.set(false);
+    w.pass(vec![egui::Event::PointerMoved(at)], Modifiers::NONE, &mut run);
+    w.pass(vec![button(at, false)], Modifiers::NONE, &mut run);
+    for _ in 0..after {
+        w.idle(&mut run);
+    }
+}
+
+#[test]
+fn w_3_a_knob_hidden_mid_drag_still_ends_its_gesture() {
+    // An open gesture keeps a host writing automation (Cubase in Touch or
+    // Latch): the drag's end must reach the host though the knob that
+    // began it is no longer drawn.
+    let host = host();
+    drag_then_hide(&host, 4, 2);
+    one_drag(&host.take(), "mix");
+}
+
+#[test]
+fn w_3_a_lost_drag_is_ended_by_another_knob_too() {
+    // Only knobs left drawn: the next one drawn ends the hidden one's drag.
+    let host = host();
+    let other = Rect::from_min_size(pos2(120.0, 20.0), vec2(72.0, 72.0));
+    let shown = std::cell::Cell::new(true);
+    let mut run = |ui: &mut Ui| {
+        if shown.get() {
+            let r = ui.interact(KNOB, Id::unique("knob"), Sense::click_and_drag());
+            gesture::knob(ui, &host, &r, "mix");
+        }
+        let r = ui.interact(other, Id::unique("other"), Sense::click_and_drag());
+        gesture::knob(ui, &host, &r, "rate");
+    };
+    let mut w = Window::new(vec2(300.0, 120.0));
+    let press = |pressed| egui::Event::PointerButton {
+        pos: KNOB.center(),
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::NONE,
+    };
+    w.pass(vec![egui::Event::PointerMoved(KNOB.center())], Modifiers::NONE, &mut run);
+    w.pass(vec![press(true)], Modifiers::NONE, &mut run);
+    w.pass(vec![egui::Event::PointerMoved(KNOB.center() - vec2(0.0, 20.0))], Modifiers::NONE, &mut run);
+    shown.set(false);
+    w.pass(vec![press(false)], Modifiers::NONE, &mut run);
+    w.idle(&mut run);
+    one_drag(&host.take(), "mix");
+}
+
+#[test]
+fn w_3_a_drag_ends_once_whichever_control_is_drawn_first() {
+    // The switch drawn before the knob looks for lost drags in the release
+    // pass before the knob sees its own drag_stopped: one end, not two.
+    let host = host();
+    let mut run = |ui: &mut Ui| {
+        let s = ui.interact(SWITCH, Id::unique("switch"), Sense::click());
+        gesture::toggle_on_click(ui, &host, &s, "on");
+        let r = ui.interact(KNOB, Id::unique("knob"), Sense::click_and_drag());
+        gesture::knob(ui, &host, &r, "mix");
+    };
+    let mut w = Window::new(vec2(300.0, 120.0));
+    w.drag(KNOB.center(), &[vec2(0.0, -10.0), vec2(0.0, -10.0)], Modifiers::NONE, &mut run);
+    one_drag(&host.take(), "mix");
+    assert!((host.get("mix") - 0.6).abs() < 1e-5, "{}", host.get("mix"));
+}
+
+#[test]
+fn w_3_a_knob_hidden_mid_drag_ends_its_gesture_through_held_edits() {
+    // With held edits wired in, the lost drag's end waits as any other and
+    // reaches the host at the next frame that finds its value shown.
+    use panelwerk_panel::hold::Held;
+    let host = host();
+    let held = Held::new();
+    struct Frame<'a>(&'a FakeHost, &'a Held);
+    impl panelwerk_panel::ParamHost for Frame<'_> {
+        fn value(&self, id: &str) -> f32 {
+            self.0.value(id)
+        }
+        fn default_value(&self, id: &str) -> f32 {
+            self.0.default_value(id)
+        }
+        fn text(&self, id: &str) -> String {
+            self.0.text(id)
+        }
+        fn begin(&self, id: &str) {
+            self.1.begin(self.0, id)
+        }
+        fn set(&self, id: &str, normalized: f32) {
+            self.1.set(self.0, id, normalized)
+        }
+        fn end(&self, id: &str) {
+            self.1.end(id)
+        }
+    }
+    let frame = Frame(&host, &held);
+    let shown = std::cell::Cell::new(true);
+    let mut run = |ui: &mut Ui| {
+        let _ = held.frame(&host, ui.input(|i| i.time));
+        if shown.get() {
+            let r = ui.interact(KNOB, Id::unique("knob"), Sense::click_and_drag());
+            gesture::knob(ui, &frame, &r, "mix");
+        }
+        let s = ui.interact(SWITCH, Id::unique("switch"), Sense::click());
+        gesture::toggle_on_click(ui, &frame, &s, "on");
+    };
+    let mut w = Window::new(vec2(300.0, 120.0));
+    let press = |pressed| egui::Event::PointerButton {
+        pos: KNOB.center(),
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::NONE,
+    };
+    w.pass(vec![egui::Event::PointerMoved(KNOB.center())], Modifiers::NONE, &mut run);
+    w.pass(vec![press(true)], Modifiers::NONE, &mut run);
+    w.pass(vec![egui::Event::PointerMoved(KNOB.center() - vec2(0.0, 20.0))], Modifiers::NONE, &mut run);
+    shown.set(false);
+    w.pass(vec![press(false)], Modifiers::NONE, &mut run);
+    w.idle(&mut run);
+    w.idle(&mut run);
+    one_drag(&host.take(), "mix");
+}

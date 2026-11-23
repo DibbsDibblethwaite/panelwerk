@@ -2,6 +2,12 @@
 
 All notable changes to Panelwerk. Versions follow `CLAUDE.md`, Versions; a change to what a consumer shows (a word, a colour, a size) lists what changes on each consumer's panel.
 
+## Unreleased (v0.5.0)
+
+*The second review's tasks (`docs/tasks-review-2.md`), approved by Ian on card REVIEW-2-FINDINGS (2026-11-22), each a minor-version change under rule 2.*
+
+- **W-3, a host gesture can't be left open.** `gesture::knob` ends a drag's gesture when egui stops the drag even if the knob is no longer drawn then (a preset, automation or a mode change hid it mid-drag): the next `gesture::knob` or `gesture::toggle_on_click` drawn in the window ends it, through its own `host`, once. Before, the host's gesture stayed open (egui 0.37 reports no `drag_stopped` for a widget not drawn in the release pass: the new test showed it), and a host in Touch or Latch kept writing automation. `Held::frame` is `#[must_use]`: ignoring its answer leaves a waiting edit open until the next input. `Held::end` panics in debug builds if `Held::frame` has never run. What each consumer's panel shows: nothing changes. What each must change at its pin move: a call of `frame` whose answer is dropped no longer passes clippy `-D warnings` (`let _ =`, or ask for a repaint on `true`); Kör's and Fläns's apps use it already.
+
 ## v0.4.0 (2026-11-14)
 
 *API agreed by Ian, 2026-11-14 (rule 2): in outline on board card CUBASE-FAMILY-PLAN (D1, "All six as recommended"), and as built, with `frame`'s answer and `take_open` added, on card PW-API-3 ("Agreed: tag v0.4.0"). The outline is Kör's `docs/proposals/cubase-family.md` §1.*
