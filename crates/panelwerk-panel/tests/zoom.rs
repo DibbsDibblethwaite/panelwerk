@@ -22,8 +22,9 @@ use panelwerk_testkit::{FakeHost, Window};
 /// reader could see.
 const SIZE_TOLERANCE: f32 = 0.01;
 
-/// Kör's range (B-PNL-6), as a consumer gives it.
-const KOER: Range = Range { min: 0.75, max: 3.0, menu: &[0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0] };
+/// Kör's range (B-PNL-6), as a consumer gives it: by `Range::new` in a
+/// `const`, the only way in from outside the library since W-6b.
+const KOER: Range = Range::new(0.75, 3.0, &[0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0]);
 const BASE: Vec2 = vec2(520.0, 280.0);
 const NAME: Rect = Rect { min: pos2(12.0, 4.0), max: pos2(56.0, 28.0) };
 const MARKER: Rect = Rect { min: pos2(300.0, 100.0), max: pos2(340.0, 140.0) };
@@ -274,9 +275,6 @@ fn a_failed_write_says_so() {
 // release), and `min > max` or a NaN bound panicked inside `f32::clamp`,
 // which every zoom path calls: on the GUI thread, inside the host.
 
-/// Kör's range, made by the constructor, in a `const` as a consumer's is.
-const KOER_NEW: Range = Range::new(0.75, 3.0, &[0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0]);
-
 /// `Range::new` called at run time, so a refusal is a panic the test sees
 /// rather than a compile error (`black_box` keeps it from being folded).
 fn made_at_run_time(min: f32, max: f32, menu: &'static [f32]) -> Range {
@@ -284,11 +282,15 @@ fn made_at_run_time(min: f32, max: f32, menu: &'static [f32]) -> Range {
 }
 
 #[test]
-fn w_6_range_new_makes_the_range_a_literal_does() {
-    assert_eq!(KOER_NEW, KOER);
+fn w_6b_a_range_reads_back_what_it_was_made_with() {
+    // W-6b: the fields are private (a literal outside the library no longer
+    // compiles: `Range`'s doc tests), and read through `min`, `max`, `menu`.
+    let menu: &[f32] = &[0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0];
+    assert_eq!((KOER.min(), KOER.max(), KOER.menu()), (0.75, 3.0, menu));
     // The same checks at run time, where they are counted for coverage.
-    assert_eq!(made_at_run_time(0.75, 3.0, KOER.menu), KOER);
-    assert_eq!(made_at_run_time(1.0, 1.0, &[1.0]), Range { min: 1.0, max: 1.0, menu: &[1.0] });
+    assert_eq!(made_at_run_time(0.75, 3.0, KOER.menu()), KOER);
+    let one = made_at_run_time(1.0, 1.0, &[1.0]);
+    assert_eq!((one.min(), one.max(), one.menu()), (1.0, 1.0, &[1.0][..]));
 }
 
 #[test]
@@ -321,14 +323,3 @@ fn w_6_range_new_refuses_a_menu_not_smallest_first() {
     }
 }
 
-#[test]
-fn w_6_an_empty_menu_written_as_a_literal_draws_nothing_and_does_not_panic() {
-    // A literal still bypasses the constructor: the menu, the one path that
-    // can't hold a meaningless range, returns early rather than underflow.
-    const EMPTY: Range = Range { min: 0.75, max: 3.0, menu: &[] };
-    let host = FakeHost::default();
-    let mut w = window();
-    zoom::open_menu(&w.ctx);
-    w.idle(&mut |ui: &mut Ui| zoom::menu(&ui.ctx().clone(), &host, &EMPTY, pos2(10.0, 10.0)));
-    assert!(w.shapes().is_empty());
-}

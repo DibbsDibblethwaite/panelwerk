@@ -40,10 +40,16 @@ use crate::palette::{BORDER, CHOICE_TEXT, CHOSEN, HOVER, SECTION};
 /// `min <= max` and neither NaN, or [`Range::clamp`], which every zoom path
 /// calls, panics on the GUI thread, inside the host (`f32::clamp`'s
 /// precondition). [`Range::new`] also refuses infinite bounds, an empty
-/// menu and a menu not strictly smallest first: none of these panics (an
-/// empty menu draws nothing, [`menu`](fn@menu)), but each is a typo. Make it with
-/// `Range::new`, so a bad `const` fails to compile; a struct literal isn't
-/// checked (W-6).
+/// menu (whose [`menu`](fn@menu) would have no last row) and a menu not
+/// strictly smallest first. `Range::new` is the only way to make one
+/// (W-6b), so a bad `const` fails to compile.
+///
+/// Why private fields read by [`Range::min`], [`Range::max`] and
+/// [`Range::menu`], not `#[non_exhaustive]` with the fields public (the
+/// review's suggestion, the same in what it refuses of a literal):
+/// `non_exhaustive` leaves the fields assignable, so a range made by `new`
+/// could still be given a NaN bound afterwards, in a `const` block too. With
+/// private fields what `new` checked stays checked.
 ///
 /// ```
 /// use panelwerk_panel::egui::vec2;
@@ -51,15 +57,30 @@ use crate::palette::{BORDER, CHOICE_TEXT, CHOSEN, HOVER, SECTION};
 ///
 /// let r = Range::new(0.75, 3.0, &[1.0, 2.0]);
 /// assert_eq!(r.for_size(vec2(780.0, 420.0), vec2(520.0, 280.0)), 1.5);
+/// assert_eq!((r.min(), r.max(), r.menu()), (0.75, 3.0, &[1.0, 2.0][..]));
+/// ```
+///
+/// Outside this crate a struct literal doesn't compile (W-6b):
+///
+/// ```compile_fail
+/// use panelwerk_panel::zoom::Range;
+///
+/// const KOER: Range = Range { min: 0.75, max: 3.0, menu: &[1.0] };
+/// ```
+///
+/// Nor does changing a field of a range already made:
+///
+/// ```compile_fail
+/// use panelwerk_panel::zoom::Range;
+///
+/// let mut r = Range::new(0.75, 3.0, &[1.0]);
+/// r.min = f32::NAN;
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Range {
-    /// The smallest zoom.
-    pub min: f32,
-    /// The largest.
-    pub max: f32,
-    /// The menu's sizes, smallest first.
-    pub menu: &'static [f32],
+    min: f32,
+    max: f32,
+    menu: &'static [f32],
 }
 
 impl Range {
@@ -93,6 +114,21 @@ impl Range {
             k += 1;
         }
         Range { min, max, menu }
+    }
+
+    /// The smallest zoom.
+    pub const fn min(&self) -> f32 {
+        self.min
+    }
+
+    /// The largest zoom.
+    pub const fn max(&self) -> f32 {
+        self.max
+    }
+
+    /// The menu's sizes, smallest first, at least one.
+    pub const fn menu(&self) -> &'static [f32] {
+        self.menu
     }
 
     /// `zoom` within the range; anything not a number is 100 %.
@@ -196,9 +232,10 @@ pub fn menu_row(at: Pos2, k: usize) -> Rect {
 /// menu (not the right-click that opened it). Run once a pass, after the
 /// controls, so it is drawn over them.
 pub fn menu(ctx: &Context, host: &dyn ZoomHost, range: &Range, at: Pos2) {
-    // An empty menu (a literal that bypassed `Range::new`) has no last row:
-    // nothing to draw, rather than an underflow on the GUI thread (W-6).
-    if range.menu.is_empty() || !ctx.data(|d| d.get_temp::<bool>(menu_id())).unwrap_or(false) {
+    // No guard for an empty menu here (W-6 had one): `Range::new` is the
+    // only way to make a range (W-6b), and it refuses one, so `len() - 1`
+    // below can't underflow.
+    if !ctx.data(|d| d.get_temp::<bool>(menu_id())).unwrap_or(false) {
         return;
     }
     let current = ctx.zoom_factor();
