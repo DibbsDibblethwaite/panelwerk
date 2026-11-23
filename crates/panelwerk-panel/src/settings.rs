@@ -7,7 +7,7 @@
 //! use std::ffi::OsString;
 //! use panelwerk_panel::{settings, zoom::Range};
 //!
-//! const KOER: Range = Range { min: 0.75, max: 3.0, menu: &[1.0] };
+//! const KOER: Range = Range::new(0.75, 3.0, &[1.0]);
 //! let file = settings::file_in(Some(OsString::from("/appdata")), "Koer").unwrap();
 //! assert!(file.ends_with("Koer/panel.json"));
 //! // A new instance: no zoom in its project, none in the file.

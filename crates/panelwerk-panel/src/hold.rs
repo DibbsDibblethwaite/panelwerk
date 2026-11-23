@@ -70,7 +70,11 @@
 //!   new edit of that parameter before then (a second drag) would continue
 //!   it, making the two one undo step in the host;
 //! - the `App` calls [`Held::frame`] with egui's input time before it draws
-//!   the panel;
+//!   the panel, every frame: only `frame` ends an edit for the host while
+//!   the window is open ([`Held::close`] and [`Held::take_open`] only as it
+//!   goes), so
+//!   debug builds panic at an end made before any `frame`, and its answer
+//!   is `#[must_use]` (below, a panel that draws only when asked; W-3);
 //! - the edits still open end when the window goes. Where the app is made
 //!   in each `Editor::spawn`, as Kör's and Fläns's are, it is dropped with
 //!   its window, so its `Drop` is the place (nice-plug-egui 0.6 keeps the
@@ -144,7 +148,7 @@
 //! let held = Held::new();
 //! let frame = Frame { raw: &raw, held: &held };
 //! // A frame at 1 s: a click sets "on" in one instant.
-//! held.frame(&raw, 1.0);
+//! assert!(!held.frame(&raw, 1.0), "nothing waits yet");
 //! frame.begin("on");
 //! frame.set("on", 1.0);
 //! frame.end("on");
@@ -172,12 +176,12 @@ use crate::ParamHost;
 ///
 /// let host = FakeHost::new(&[("on", 0.0)]);
 /// let held = Held::new();
-/// held.frame(&host, 0.0);
+/// assert!(!held.frame(&host, 0.0));
 /// held.begin(&host, "on");
 /// held.set(&host, "on", 1.0);
 /// held.end("on");
 /// assert_eq!(host.take(), ["begin on", "set on"]);
-/// held.frame(&host, 0.02);
+/// assert!(!held.frame(&host, 0.02));
 /// assert_eq!(host.take(), ["end on"], "the value had arrived");
 /// ```
 #[derive(Debug, Default)]
@@ -189,6 +193,10 @@ pub struct Held {
 struct State {
     /// The panel's clock: the time of the frame being drawn, in seconds.
     now: f64,
+    /// Whether [`Held::frame`] has run: an end before it is a consumer that
+    /// doesn't call `frame`, whose edits would never end for the host
+    /// (W-3). A flag, not `now == 0.0`: a first frame may come at time 0.
+    framed: bool,
     /// Each gesture the host knows of, by parameter, in the order begun, so
     /// they end in that order.
     gestures: Vec<(String, Gesture)>,
@@ -248,8 +256,15 @@ impl Held {
     /// The panel ends its gesture on `id`: at the last nested begin's end it
     /// waits, from this frame's time, and a later [`Held::frame`] tells the
     /// host. An end with no gesture open does nothing.
+    ///
+    /// Debug builds panic if [`Held::frame`] has never run: only `frame`
+    /// ends an edit for the host while the window is open (W-3).
     pub fn end(&self, id: &str) {
         let mut state = self.state.borrow_mut();
+        debug_assert!(
+            state.framed,
+            "Held::end before any Held::frame: call frame at the start of every frame, or no edit ends for the host while the window is open"
+        );
         let at = state.now;
         if let Some((_, gesture)) = state.gestures.iter_mut().find(|(p, _)| p == id) {
             if let Gesture::Open { depth, last } = *gesture {
@@ -267,13 +282,17 @@ impl Held {
     /// ready once `raw` shows each one's value, or it has waited
     /// [`PENDING_FOR`] (or the clock is before it: a new window's, started
     /// again). Returns whether a gesture still waits, so a panel that draws
-    /// only when asked can ask for another frame.
+    /// only when asked can ask for another frame: ignoring it leaves an
+    /// edit open until the next input, minutes in a host that draws only on
+    /// demand, so the compiler warns (W-3).
+    #[must_use = "while a gesture waits, ask for another frame (egui's request_repaint), or it ends only at the next input"]
     pub fn frame(&self, raw: &dyn ParamHost, now: f64) -> bool {
         // The waiting gestures, copied out so `raw.shows` is asked with the
         // state released: a consumer's `shows` may reach these held edits.
         let waiting: Vec<(String, Option<f32>, f64)> = {
             let mut state = self.state.borrow_mut();
             state.now = now;
+            state.framed = true;
             state
                 .gestures
                 .iter()

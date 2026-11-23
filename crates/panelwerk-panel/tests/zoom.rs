@@ -266,3 +266,69 @@ fn a_failed_write_says_so() {
     assert!(settings::write(&path, 1.5, &KOER).is_err());
     assert!(settings::write(std::path::Path::new(""), 1.0, &KOER).is_err());
 }
+
+// ---- W-6: a bad range refused where it's made, not on the GUI thread ----
+//
+// Before W-6, a `Range` written as a struct literal with an empty menu made
+// `zoom::menu` underflow (a panic in debug builds, a huge rectangle in
+// release), and `min > max` or a NaN bound panicked inside `f32::clamp`,
+// which every zoom path calls: on the GUI thread, inside the host.
+
+/// Kör's range, made by the constructor, in a `const` as a consumer's is.
+const KOER_NEW: Range = Range::new(0.75, 3.0, &[0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0]);
+
+/// `Range::new` called at run time, so a refusal is a panic the test sees
+/// rather than a compile error (`black_box` keeps it from being folded).
+fn made_at_run_time(min: f32, max: f32, menu: &'static [f32]) -> Range {
+    Range::new(std::hint::black_box(min), std::hint::black_box(max), std::hint::black_box(menu))
+}
+
+#[test]
+fn w_6_range_new_makes_the_range_a_literal_does() {
+    assert_eq!(KOER_NEW, KOER);
+    // The same checks at run time, where they are counted for coverage.
+    assert_eq!(made_at_run_time(0.75, 3.0, KOER.menu), KOER);
+    assert_eq!(made_at_run_time(1.0, 1.0, &[1.0]), Range { min: 1.0, max: 1.0, menu: &[1.0] });
+}
+
+#[test]
+#[should_panic(expected = "a zoom range's menu needs at least one size")]
+fn w_6_range_new_refuses_an_empty_menu() {
+    made_at_run_time(0.75, 3.0, &[]);
+}
+
+#[test]
+#[should_panic(expected = "a zoom range needs min <= max")]
+fn w_6_range_new_refuses_min_over_max() {
+    made_at_run_time(3.0, 0.75, &[1.0]);
+}
+
+#[test]
+fn w_6_range_new_refuses_a_bound_that_is_not_finite() {
+    for (min, max) in [(f32::NAN, 3.0), (0.75, f32::NAN), (f32::NEG_INFINITY, 3.0), (0.75, f32::INFINITY)] {
+        let refused = std::panic::catch_unwind(|| made_at_run_time(min, max, &[1.0]));
+        let message = refused.expect_err("refused").downcast::<&str>().map(|m| *m).unwrap_or_default();
+        assert_eq!(message, "a zoom range's min and max must be finite", "{min}, {max}");
+    }
+}
+
+#[test]
+fn w_6_range_new_refuses_a_menu_not_smallest_first() {
+    for menu in [&[1.0, 0.75][..], &[1.0, 1.0], &[1.0, f32::NAN]] {
+        let refused = std::panic::catch_unwind(|| made_at_run_time(0.75, 3.0, menu));
+        let message = refused.expect_err("refused").downcast::<&str>().map(|m| *m).unwrap_or_default();
+        assert_eq!(message, "a zoom range's menu must go smallest first", "{menu:?}");
+    }
+}
+
+#[test]
+fn w_6_an_empty_menu_written_as_a_literal_draws_nothing_and_does_not_panic() {
+    // A literal still bypasses the constructor: the menu, the one path that
+    // can't hold a meaningless range, returns early rather than underflow.
+    const EMPTY: Range = Range { min: 0.75, max: 3.0, menu: &[] };
+    let host = FakeHost::default();
+    let mut w = window();
+    zoom::open_menu(&w.ctx);
+    w.idle(&mut |ui: &mut Ui| zoom::menu(&ui.ctx().clone(), &host, &EMPTY, pos2(10.0, 10.0)));
+    assert!(w.shapes().is_empty());
+}

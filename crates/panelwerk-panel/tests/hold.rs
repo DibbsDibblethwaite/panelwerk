@@ -68,7 +68,7 @@ fn instant(held: &Held, host: &FakeHost, id: &str, to: f32) {
 #[test]
 fn pw_hold_an_instant_edit_is_ended_for_the_host_only_once_its_value_arrives() {
     let (host, held) = (lagging(), Held::new());
-    held.frame(&host, T0);
+    let _ = held.frame(&host, T0);
     instant(&held, &host, "a", 1.0);
     assert_eq!(host.take(), ["begin a", "set a"], "the end waits");
     assert!(held.frame(&host, SOON), "it waits: the panel is to ask for another frame");
@@ -76,14 +76,14 @@ fn pw_hold_an_instant_edit_is_ended_for_the_host_only_once_its_value_arrives() {
     host.put("a", 1.0);
     assert!(!held.frame(&host, NEARLY), "nothing waits now");
     assert_eq!(host.take(), ["end a"]);
-    held.frame(&host, LIMIT);
+    let _ = held.frame(&host, LIMIT);
     assert!(host.take().is_empty(), "ended once");
 }
 
 #[test]
 fn pw_hold_an_edit_whose_value_never_arrives_is_ended_at_pending_for() {
     let (host, held) = (lagging(), Held::new());
-    held.frame(&host, T0);
+    let _ = held.frame(&host, T0);
     instant(&held, &host, "a", 1.0);
     host.take();
     assert!(held.frame(&host, NEARLY));
@@ -96,17 +96,17 @@ fn pw_hold_an_edit_whose_value_never_arrives_is_ended_at_pending_for() {
 fn pw_hold_a_new_panel_clock_ends_a_waiting_edit() {
     // A clock before the edit's end: a new window's, starting again.
     let (host, held) = (lagging(), Held::new());
-    held.frame(&host, LIMIT);
+    let _ = held.frame(&host, LIMIT);
     instant(&held, &host, "a", 1.0);
     host.take();
-    held.frame(&host, T0);
+    let _ = held.frame(&host, T0);
     assert_eq!(host.take(), ["end a"]);
 }
 
 #[test]
 fn pw_hold_a_gesture_with_nothing_set_is_ended_at_the_next_frame() {
     let (host, held) = (lagging(), Held::new());
-    held.frame(&host, T0);
+    let _ = held.frame(&host, T0);
     held.begin(&host, "a");
     held.end("a");
     assert_eq!(host.take(), ["begin a"]);
@@ -117,53 +117,53 @@ fn pw_hold_a_gesture_with_nothing_set_is_ended_at_the_next_frame() {
 #[test]
 fn pw_hold_a_gesture_with_nothing_set_on_a_waiting_edit_keeps_waiting_for_its_value() {
     let (host, held) = (lagging(), Held::new());
-    held.frame(&host, T0);
+    let _ = held.frame(&host, T0);
     instant(&held, &host, "a", 1.0);
-    held.frame(&host, SOON);
+    let _ = held.frame(&host, SOON);
     // A click on the control that sets nothing, while the edit waits.
     held.begin(&host, "a");
     held.end("a");
-    held.frame(&host, NEARLY);
+    let _ = held.frame(&host, NEARLY);
     assert_eq!(host.take(), ["begin a", "set a"], "still waiting for 1.0, no second begin");
     host.put("a", 1.0);
-    held.frame(&host, NEARLY);
+    let _ = held.frame(&host, NEARLY);
     assert_eq!(host.take(), ["end a"]);
 }
 
 #[test]
 fn pw_hold_an_edit_while_one_waits_continues_its_gesture() {
     let (host, held) = (lagging(), Held::new());
-    held.frame(&host, T0);
+    let _ = held.frame(&host, T0);
     instant(&held, &host, "a", 1.0);
-    held.frame(&host, SOON);
+    let _ = held.frame(&host, SOON);
     // A second click: the host never sees a gesture begun twice, and the
     // edit now waits for the second value, from the second end.
     instant(&held, &host, "a", 0.5);
     assert_eq!(host.take(), ["begin a", "set a", "set a"]);
     host.put("a", 1.0);
-    held.frame(&host, SOON);
+    let _ = held.frame(&host, SOON);
     assert!(host.take().is_empty(), "the first value isn't the one waited for");
-    held.frame(&host, LIMIT);
+    let _ = held.frame(&host, LIMIT);
     assert!(host.take().is_empty(), "the limit counts from the second end");
     host.put("a", 0.5);
-    held.frame(&host, LIMIT);
+    let _ = held.frame(&host, LIMIT);
     assert_eq!(host.take(), ["end a"]);
 }
 
 #[test]
 fn pw_hold_an_end_too_many_does_nothing() {
     let (host, held) = (lagging(), Held::new());
-    held.frame(&host, T0);
+    let _ = held.frame(&host, T0);
     held.end("a");
-    held.frame(&host, SOON);
+    let _ = held.frame(&host, SOON);
     assert!(host.take().is_empty(), "no gesture: nothing told");
     instant(&held, &host, "a", 1.0);
-    held.frame(&host, NEARLY);
+    let _ = held.frame(&host, NEARLY);
     // An end on a waiting edit: neither ends it nor starts its wait again.
     held.end("a");
-    held.frame(&host, NEARLY);
+    let _ = held.frame(&host, NEARLY);
     assert_eq!(host.take(), ["begin a", "set a"]);
-    held.frame(&host, LIMIT + SOON - T0);
+    let _ = held.frame(&host, LIMIT + SOON - T0);
     assert_eq!(host.take(), ["end a"], "ended at the limit of the first end, made at SOON");
 }
 
@@ -180,7 +180,7 @@ fn pw_hold_an_edit_ends_once_the_plugin_shows_its_value_as_the_plugin_rounds_it(
     // to 0.3 holds 0.25 (4 steps), and that is the value arriving.
     let host = FakeHost::new(&[("mode", 0.0)]).stepped(&[("mode", 4)]);
     let held = Held::new();
-    held.frame(&host, T0);
+    let _ = held.frame(&host, T0);
     instant(&held, &host, "mode", 0.3);
     assert_eq!(host.get("mode"), 0.25);
     host.take();
@@ -225,7 +225,7 @@ impl ParamHost for Reentrant<'_> {
 fn pw_hold_a_shows_that_calls_back_into_the_held_edits_is_safe() {
     let held = Held::new();
     let raw = Reentrant { host: lagging(), held: &held };
-    held.frame(&raw, T0);
+    let _ = held.frame(&raw, T0);
     instant(&held, &raw.host, "a", 1.0);
     raw.host.take();
     assert!(held.frame(&raw, SOON), "still waiting, and no double borrow");
@@ -247,69 +247,69 @@ fn pw_hold_a_set_outside_a_gesture_is_passed_on_and_held_for_nothing() {
 #[test]
 fn pw_hold_edits_ended_at_one_moment_reach_the_host_together() {
     let (host, held) = (lagging(), Held::new());
-    held.frame(&host, T0);
+    let _ = held.frame(&host, T0);
     instant(&held, &host, "a", 1.0);
     instant(&held, &host, "b", 1.0);
     host.take();
     host.put("a", 1.0);
-    held.frame(&host, SOON);
+    let _ = held.frame(&host, SOON);
     assert!(host.take().is_empty(), "b hasn't arrived, so a waits with it");
     host.put("b", 1.0);
-    held.frame(&host, SOON);
+    let _ = held.frame(&host, SOON);
     assert_eq!(host.take(), ["end a", "end b"], "in one frame, in the order begun");
 }
 
 #[test]
 fn pw_hold_edits_ended_at_one_moment_are_ended_together_at_the_limit() {
     let (host, held) = (lagging(), Held::new());
-    held.frame(&host, T0);
+    let _ = held.frame(&host, T0);
     instant(&held, &host, "a", 1.0);
     instant(&held, &host, "b", 1.0);
     host.take();
     host.put("a", 1.0);
-    held.frame(&host, NEARLY);
+    let _ = held.frame(&host, NEARLY);
     assert!(host.take().is_empty());
-    held.frame(&host, LIMIT);
+    let _ = held.frame(&host, LIMIT);
     assert_eq!(host.take(), ["end a", "end b"], "b never arrived");
 }
 
 #[test]
 fn pw_hold_edits_ended_at_different_moments_end_each_when_ready() {
     let (host, held) = (lagging(), Held::new());
-    held.frame(&host, T0);
+    let _ = held.frame(&host, T0);
     instant(&held, &host, "a", 1.0);
-    held.frame(&host, SOON);
+    let _ = held.frame(&host, SOON);
     instant(&held, &host, "b", 1.0);
     host.take();
     host.put("b", 1.0);
-    held.frame(&host, NEARLY);
+    let _ = held.frame(&host, NEARLY);
     assert_eq!(host.take(), ["end b"], "not held up by a, ended earlier and still waiting");
     host.put("a", 1.0);
-    held.frame(&host, NEARLY);
+    let _ = held.frame(&host, NEARLY);
     assert_eq!(host.take(), ["end a"]);
 }
 
 #[test]
 fn pw_hold_close_ends_every_gesture_open_or_waiting_once_in_the_order_begun() {
     let (host, held) = (lagging(), Held::new());
-    held.frame(&host, T0);
+    let _ = held.frame(&host, T0);
     instant(&held, &host, "b", 1.0);
     held.begin(&host, "a");
     held.set(&host, "a", 0.5);
     host.take();
     held.close(&host);
     assert_eq!(host.take(), ["end b", "end a"]);
-    held.frame(&host, LIMIT);
+    let _ = held.frame(&host, LIMIT);
     held.close(&host);
     held.end("a");
-    held.frame(&host, LIMIT);
+    let _ = held.frame(&host, LIMIT);
     assert!(host.take().is_empty(), "each ended once");
 }
 
 #[test]
 fn pw_hold_take_open_hands_over_every_open_or_waiting_gesture_telling_the_host_nothing() {
     let (host, held) = (lagging(), Held::new());
-    held.frame(&host, T0);
+    let _ = held.frame(&host, T0);
     instant(&held, &host, "b", 1.0);
     held.begin(&host, "a");
     held.set(&host, "a", 0.5);
@@ -320,7 +320,7 @@ fn pw_hold_take_open_hands_over_every_open_or_waiting_gesture_telling_the_host_n
     // Nothing is left for the held edits to end.
     assert!(!held.frame(&host, LIMIT));
     held.end("a");
-    held.frame(&host, LIMIT);
+    let _ = held.frame(&host, LIMIT);
     held.close(&host);
     assert!(host.take().is_empty(), "neither frame nor close ends them again");
     assert!(held.take_open().is_empty());
@@ -335,7 +335,7 @@ fn pw_hold_take_open_hands_over_every_open_or_waiting_gesture_telling_the_host_n
 #[test]
 fn pw_hold_after_take_open_an_edit_begins_a_new_gesture() {
     let (host, held) = (lagging(), Held::new());
-    held.frame(&host, T0);
+    let _ = held.frame(&host, T0);
     instant(&held, &host, "a", 1.0);
     held.take_open();
     instant(&held, &host, "a", 0.0);
@@ -347,12 +347,12 @@ fn pw_hold_begins_nest_so_an_instant_edit_during_a_drag_does_not_cut_it_off() {
     for model in MODELS {
         let host = FakeHost::new(&[("a", 0.0)]).modelled(model);
         let held = Held::new();
-        held.frame(&host, T0);
+        let _ = held.frame(&host, T0);
         // A drag begins and moves.
         held.begin(&host, "a");
         held.set(&host, "a", 0.25);
         host.process();
-        held.frame(&host, SOON);
+        let _ = held.frame(&host, SOON);
         // An instant edit on the same parameter (a consumer's key) inside it.
         instant(&held, &host, "a", 0.5);
         host.process();
@@ -361,10 +361,10 @@ fn pw_hold_begins_nest_so_an_instant_edit_during_a_drag_does_not_cut_it_off() {
         held.set(&host, "a", 0.75);
         host.process();
         assert_eq!(host.get("a"), 0.75, "{model:?}: the drag wasn't cut off");
-        held.frame(&host, NEARLY);
+        let _ = held.frame(&host, NEARLY);
         assert_eq!(host.take(), ["begin a", "set a", "set a", "set a"], "{model:?}: one begin, no end yet");
         held.end("a");
-        held.frame(&host, NEARLY);
+        let _ = held.frame(&host, NEARLY);
         host.process();
         assert_eq!(host.take(), ["end a"], "{model:?}");
         assert_eq!(host.get("a"), 0.75, "{model:?}");
@@ -452,7 +452,7 @@ fn panel(rig: &Rig) -> impl FnMut(&mut Ui) + '_ {
             rig.host.process();
         }
         if rig.wired {
-            rig.held.frame(&rig.host, ui.input(|i| i.time));
+            let _ = rig.held.frame(&rig.host, ui.input(|i| i.time));
         }
         let host: &dyn ParamHost = rig;
         let k = ui.interact(KNOB, Id::unique("knob"), Sense::click_and_drag());
@@ -669,4 +669,15 @@ fn pw_hold_one_click_setting_two_parameters_ends_both_in_one_frame() {
         assert_eq!((rig.host.get("a"), rig.host.get("b")), (1.0, 1.0), "{model:?}");
         assert_eq!(rig.host.take(), ["begin a", "set a", "begin b", "set b", "end a", "end b"], "{model:?}");
     }
+}
+
+#[test]
+#[cfg(debug_assertions)]
+#[should_panic(expected = "Held::frame")]
+fn w_3_an_end_before_any_frame_is_a_wiring_mistake_caught_in_debug() {
+    // A consumer that never calls `frame` never ends an edit for the host
+    // (only `close` or `take_open` would): debug builds say so at the
+    // first end (W-3).
+    let (host, held) = (lagging(), Held::new());
+    instant(&held, &host, "a", 1.0);
 }

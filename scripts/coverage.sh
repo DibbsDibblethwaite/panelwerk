@@ -20,13 +20,8 @@ export CARGO_LLVM_COV_TARGET_DIR="$PWD/target/llvm-cov-target"
 # output anyway, so it's dropped here.
 args=()
 for a in "$@"; do [[ "$a" == --quiet ]] || args+=("$a"); done
-# The tests, then the report: a workspace with no library code yet (the
-# crates are empty until docs/proposal.md's step 1) has no regions at all,
-# which llvm-cov's gate counts as a failure, so that case passes, said.
+# The tests, then the report. (The branch that passed a report with no
+# regions, for the empty crates before step 1, went with W-11: it could
+# only hide a real failure.)
 cargo llvm-cov nextest --workspace --no-tests=pass --no-report
-regions=$(cargo llvm-cov report --json --summary-only | grep -oE '"regions":\{"count":[0-9]+' | tail -1 | grep -oE '[0-9]+$')
-if [[ "$regions" == 0 ]]; then
-    echo "coverage: no library code yet, nothing to cover"
-    exit 0
-fi
 cargo llvm-cov report --fail-under-lines 100 --fail-under-functions 100 --fail-under-regions 100 "${args[@]}"
