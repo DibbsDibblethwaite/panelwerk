@@ -18,8 +18,23 @@
 //! consumer keeps its literals and proves them Panelwerk's with one line per
 //! list (PW-4), its lengths in its own order (rule 1):
 //!
-//! ```rust,ignore
-//! use panelwerk_text::sync::{ids, names, NoteLength::*};
+//! The stand-in `SyncRate` below has what nice-plug's derived `Enum` gives a
+//! consumer's list, `variants()` and `ids()`, so the example runs without
+//! nice-plug:
+//!
+//! ```
+//! use panelwerk_text::sync::{ids, names, NoteLength, NoteLength::*};
+//!
+//! struct SyncRate;
+//! impl SyncRate {
+//!     fn variants() -> &'static [&'static str] {
+//!         &["2 bars", "1/4", "1/4 dotted"]
+//!     }
+//!     fn ids() -> Option<&'static [&'static str]> {
+//!         Some(&["2bar", "4", "4d"])
+//!     }
+//! }
+//!
 //! const LIST: [NoteLength; 3] = [Bars(2), Note(4), Dotted(4)];
 //! assert_eq!(SyncRate::variants(), names(LIST));
 //! assert_eq!(SyncRate::ids(), Some(&ids(LIST)[..]));
