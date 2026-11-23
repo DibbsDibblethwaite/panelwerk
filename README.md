@@ -1,6 +1,6 @@
 # Panelwerk
 
-The shared look and conventions of Ian Dilley's audio plugins (Rödalog, Kör, Fläns), beside DSPWerkbank, which holds their shared DSP. MIT OR Apache-2.0.
+The shared look and conventions of Ian Dilley's audio plugins (Rödalog, Kör, Fläns, Klinga), beside DSPWerkbank, which holds their shared DSP. MIT OR Apache-2.0.
 
 - `panelwerk-text`: the text and conventions. Std only: tempo-sync length names in Rödalog's words ("4 bars", "1/4", "1/4 dotted", "1/4 triplet"), value text in one family format for %, dB, Hz, ms, cents and whole steps, and its parsing; the list-ID convention.
 - `panelwerk-panel`: the panel, drawn with egui 0.37.0 (nice-plug-egui 0.6.0's): the palette and its contrast test, gestures, knobs, lights, buttons and switches, the red title strip, the help line, zoom and its menu, the settings file, held edits (a host's gesture kept open until the plugin has the value). Lists, bipolar and further arcs come in step 3.

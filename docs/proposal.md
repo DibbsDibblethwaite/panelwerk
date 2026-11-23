@@ -247,12 +247,12 @@ The library knows "a further arc at a radius", "a bipolar knob" and "a dead half
 1. **The change**, in Panelwerk, by its own agent (rule 13), test first, through the hook; its `CHANGELOG.md` entry says what changes on each consumer's panel, if anything (rule 6); an API change agreed with Ian (rule 2).
 2. **The consumer check**: `./scripts/consumers.sh`, every consumer's full hook against this checkout, in clones (rule 14). A failure is fixed here, or the consumer's side is scheduled in that consumer, before the tag.
 3. **The tag**, `vX.Y.Z` on `main`, pushed to GitHub.
-4. **The family update**, one agent, the three consumers one after another (Rödalog on `v3`, Kör on `main`, Fläns on its current branch), in each:
+4. **The family update**, one agent, every consumer one after another (Rödalog on `v3`, Kör on `main`, Fläns on its current branch, Klinga on `main`; W-1), in each:
    - the tag in `Cargo.toml` for both crates, then `cargo update -p panelwerk-text -p panelwerk-panel`;
    - its licence file regenerated (`scripts/licences.sh`, which lists Panelwerk's notice as it does DSPWerkbank's);
    - its full hook; a commit naming only those files (`Family update: Panelwerk vX.Y.Z`), never `git commit -a` (Kör's and Fläns's agents share one tree);
    - where the change shows on screen, a screenshot (each has a screenshot example) for Ian.
-5. **The proof**: `./scripts/consumers.sh --pins` shows one tag for all three. If one consumer's hook fails at step 4, the others aren't held back from their commits, but the update isn't done until all three are on the tag; the failing one is fixed the same day or reported to Ian.
+5. **The proof**: `./scripts/consumers.sh --pins` shows one tag for every consumer, and fails if it can read no pin for one (W-8). If one consumer's hook fails at step 4, the others aren't held back from their commits, but the update isn't done until every one is on the tag; the failing one is fixed the same day or reported to Ian.
 
 A consumer in a release freeze is the only reason to lag (PW-11).
 
