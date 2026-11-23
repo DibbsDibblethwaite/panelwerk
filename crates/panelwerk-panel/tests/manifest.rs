@@ -1,8 +1,10 @@
 //! CLAUDE.md rule 2: `panelwerk-panel` depends on egui, at exactly the
 //! version the consumers' nice-plug-egui 0.6.0 uses (PW-13), and serde_json
 //! for the settings file (PW-8), and never on nice-plug or nice-plug-egui,
-//! which each consumer vendors and patches for itself.
-//! Dev-dependencies are allowed.
+//! which each consumer vendors and patches for itself, nor on
+//! `panelwerk-nice`, the one crate here that does (CLAUDE.md, Layout; W-2b).
+//! Its one dev-dependency is the test kit, whose own dependencies are
+//! checked exactly in its `tests/manifest.rs`.
 
 /// The entries of one `[section]` of a Cargo manifest (not a TOML parser:
 /// enough for the plain manifest this crate keeps).
@@ -28,6 +30,10 @@ fn rule_2_the_panel_layer_depends_on_egui_0_37_0_and_serde_json_only() {
     assert_eq!(section_entries(manifest, "[build-dependencies]"), Vec::<String>::new());
     let dev = section_entries(manifest, "[dev-dependencies]");
     assert!(!dev.iter().any(|e| e.starts_with("nice-plug")), "never nice-plug or nice-plug-egui, in tests either");
+    // The test kit and nothing else, so nice-plug can't come in through
+    // another crate, `panelwerk-nice` above all (W-2b): the test kit's own
+    // list is exact too (its `tests/manifest.rs`).
+    assert_eq!(dev, ["panelwerk-testkit = { path = \"../panelwerk-testkit\" }"], "the test kit only");
 }
 
 #[test]
