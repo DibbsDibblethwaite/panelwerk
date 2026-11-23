@@ -1,5 +1,6 @@
 //! Panelwerk's text layer: the conventions Ian Dilley's plugins (Rödalog,
-//! Kör, Fläns) share in the words they show, so the family reads as one.
+//! Kör, Fläns, Klinga) share in the words they show, so the family reads as
+//! one.
 //!
 //! - [`sync`]: the tempo-sync length names in Rödalog's words ("4 bars",
 //!   "1/4", "1/4 dotted", "1/4 triplet"; FAM-1) and their list IDs, frozen,

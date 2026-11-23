@@ -7,6 +7,25 @@ use panelwerk_panel::palette::*;
 use panelwerk_panel::{font, help, title};
 use panelwerk_testkit::{text_width, Window};
 
+/// How far, in points, a text's ink may sit from where the geometry places
+/// it. "As achieved" (rule 8; agreed by Ian, 2026-11-22, REVIEW-2-FINDINGS,
+/// point 11), not a standard and not any consumer's rule: egui's
+/// `visual_bounding_rect` is the box of the glyphs' ink, which starts a
+/// little inside the layout box (a glyph's side bearing) and, vertically,
+/// is not centred on it (the font's ascent and descent). So an exact
+/// comparison would fail on the font, not on the placement. It allows that
+/// much, which is less than one glyph's width: a text a letter out of
+/// place, or on the wrong side of its anchor, still fails.
+const TEXT_PLACEMENT_TOLERANCE: f32 = 1.5;
+
+/// How far, in points, a length computed two ways may differ. Float
+/// rounding, not a standard: each side is a few `f32` additions of the
+/// same widths, margins and gaps, in a different order, so the two can
+/// differ in the last bit, far under a hundredth of a point. "As achieved"
+/// (rule 8; agreed by Ian, 2026-11-22, REVIEW-2-FINDINGS, point 11); it
+/// allows that rounding and nothing a reader could see.
+const FLOAT_TOLERANCE: f32 = 0.01;
+
 #[test]
 fn the_title_strip_white_on_red_filling_its_rectangle() {
     let rect = Rect::from_min_size(pos2(12.0, 4.0), vec2(44.0, 24.0));
@@ -36,7 +55,7 @@ fn the_title_strip_white_on_red_filling_its_rectangle() {
         .iter()
         .all(|s| s.format.color == TITLE_TEXT && s.format.font_id == egui::FontId::proportional(15.0)));
     assert!(rect.shrink(2.0).contains_rect(name.visual_bounding_rect()));
-    assert!((name.visual_bounding_rect().center() - rect.center()).length() < 1.5);
+    assert!((name.visual_bounding_rect().center() - rect.center()).length() < TEXT_PLACEMENT_TOLERANCE);
     w.click(rect.center(), &mut run);
     w.click_with(rect.center(), PointerButton::Secondary, &mut run);
     assert_eq!((clicks, seconds), (1, 1), "its clicks are the caller's");
@@ -74,9 +93,9 @@ fn a_hint_at_the_left_its_value_in_bright_red_at_the_right() {
             })
             .unwrap()
     };
-    assert!((bounds("How loud the hiss is.").left() - 12.0).abs() < 1.5);
-    assert!((bounds("-60.0 dBFS").right() - 508.0).abs() < 1.5);
-    assert!((bounds("-60.0 dBFS").center().y - LINE.center().y).abs() < 1.5);
+    assert!((bounds("How loud the hiss is.").left() - 12.0).abs() < TEXT_PLACEMENT_TOLERANCE);
+    assert!((bounds("-60.0 dBFS").right() - 508.0).abs() < TEXT_PLACEMENT_TOLERANCE);
+    assert!((bounds("-60.0 dBFS").center().y - LINE.center().y).abs() < TEXT_PLACEMENT_TOLERANCE);
     let w = line(Some("Mix"), None);
     assert_eq!(w.texts_coloured(TEXT), ["Mix"]);
 }
@@ -95,7 +114,7 @@ fn a_hint_is_clipped_before_the_value_rather_than_run_under_it() {
         .unwrap()
         .clip_rect;
     let right = LINE.right() - help::MARGIN - text_width(value, font()) - help::VALUE_GAP;
-    assert!((clip.right() - right).abs() < 0.01, "{clip:?}, {right}");
+    assert!((clip.right() - right).abs() < FLOAT_TOLERANCE, "{clip:?}, {right}");
     // Without a value, at the right margin.
     let w = line(Some(long), None);
     let clip = w
@@ -105,5 +124,5 @@ fn a_hint_is_clipped_before_the_value_rather_than_run_under_it() {
         .find(|c| matches!(&c.shape, Shape::Text(t) if t.galley.text() == long))
         .unwrap()
         .clip_rect;
-    assert!((clip.right() - (LINE.right() - help::MARGIN)).abs() < 0.01, "{clip:?}");
+    assert!((clip.right() - (LINE.right() - help::MARGIN)).abs() < FLOAT_TOLERANCE, "{clip:?}");
 }

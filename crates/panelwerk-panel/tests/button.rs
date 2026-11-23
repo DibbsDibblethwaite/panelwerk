@@ -9,6 +9,17 @@ use panelwerk_panel::palette::*;
 use panelwerk_panel::{button, Control};
 use panelwerk_testkit::{FakeHost, Window};
 
+/// How far, in points, a text's ink may sit from where the geometry places
+/// it. "As achieved" (rule 8; agreed by Ian, 2026-11-22, REVIEW-2-FINDINGS,
+/// point 11), not a standard and not any consumer's rule: egui's
+/// `visual_bounding_rect` is the box of the glyphs' ink, which starts a
+/// little inside the layout box (a glyph's side bearing) and, vertically,
+/// is not centred on it (the font's ascent and descent). So an exact
+/// comparison would fail on the font, not on the placement. It allows that
+/// much, which is less than one glyph's width: a text a letter out of
+/// place, or on the wrong side of its anchor, still fails.
+const TEXT_PLACEMENT_TOLERANCE: f32 = 1.5;
+
 #[test]
 fn a_light_lit_dimmed_or_off() {
     assert_eq!(
@@ -64,7 +75,7 @@ fn a_lit_button_its_light_at_the_left_its_name_beside() {
     assert!(w.shapes().iter().any(|s| matches!(s, Shape::Circle(c) if c.center == at && c.radius == 5.0)));
     let name = w.shapes().into_iter().find_map(|s| if let Shape::Text(t) = s { Some(t) } else { None }).unwrap();
     assert_eq!(name.galley.text(), "I");
-    assert!((name.visual_bounding_rect().left() - (at.x + 5.0 + light::TEXT_GAP)).abs() < 1.5);
+    assert!((name.visual_bounding_rect().left() - (at.x + 5.0 + light::TEXT_GAP)).abs() < TEXT_PLACEMENT_TOLERANCE);
     assert_eq!(light::TEXT_GAP, 6.0);
     w.click(rect.center(), &mut run);
     assert_eq!(clicks, 1);

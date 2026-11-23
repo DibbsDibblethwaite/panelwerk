@@ -3,10 +3,11 @@
 //! (negative zero, rounding up into the next format, the floor), and every
 //! text read back to a value that shows the same.
 //!
-//! The units: every kind but frequency returns the number alone, and the
-//! consumer's parameter adds its unit (nice-plug's `with_unit`, a space
-//! first: " %", " dB"); frequencies write their own, "440 Hz", "1.20 kHz"
-//! (PW-1a, Ian, 2026-11-10). `shown` below is what a host shows.
+//! The units: every kind but frequency and time returns the number alone,
+//! and the consumer's parameter adds its unit (nice-plug's `with_unit`, a
+//! space first: " %", " dB"); frequencies and times write their own,
+//! "440 Hz", "1.20 kHz", "350 ms", "1.00 s" (PW-1a, Ian, 2026-11-10; times
+//! since v0.2.0, PW-15). `shown` below is what a host shows.
 
 use panelwerk_text::value::{self, Sign::*};
 
