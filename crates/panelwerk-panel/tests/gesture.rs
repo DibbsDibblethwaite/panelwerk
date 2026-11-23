@@ -355,3 +355,196 @@ fn w_3_a_knob_hidden_mid_drag_ends_its_gesture_through_held_edits() {
     w.idle(&mut run);
     one_drag(&host.take(), "mix");
 }
+
+/// W-3b: no value sent for a parameter whose gesture isn't open, and every
+/// gesture begun is the gesture ended: each `set id` and `end id` comes
+/// while `id`'s gesture is open, and none is left open.
+fn every_set_inside_its_gesture(gestures: &[String]) {
+    let mut open: Vec<&str> = vec![];
+    for g in gestures {
+        let (what, id) = g.split_once(' ').unwrap();
+        match what {
+            "begin" => open.push(id),
+            "set" => assert!(open.contains(&id), "a set of {id} with no gesture open: {gestures:?}"),
+            _ => {
+                let at = open.iter().position(|o| *o == id);
+                assert!(at.is_some(), "an end of {id} with no gesture open: {gestures:?}");
+                open.remove(at.unwrap());
+            }
+        }
+    }
+    assert!(open.is_empty(), "left open: {open:?} in {gestures:?}");
+}
+
+/// W-3b: Kör's Rate knob, which keeps one widget ID but draws Sync Rate when
+/// Sync is on. A press on the knob, a move of 20 points up while it is
+/// Rate's, then Sync Rate's for a second move of 20 and the release, then
+/// an idle pass; `frame` runs at the start of every pass (held edits).
+fn drag_while_the_knob_changes_parameter(host: &dyn panelwerk_panel::ParamHost, frame: &mut dyn FnMut(&Ui)) {
+    drag_in_while_the_knob_changes_parameter(&mut Window::new(vec2(300.0, 120.0)), host, frame);
+}
+
+/// The same, in window `w`, so a later drag in it sees whatever the first
+/// left in egui's memory.
+fn drag_in_while_the_knob_changes_parameter(
+    w: &mut Window,
+    host: &dyn panelwerk_panel::ParamHost,
+    frame: &mut dyn FnMut(&Ui),
+) {
+    let param = std::cell::Cell::new("rate");
+    let mut run = |ui: &mut Ui| {
+        frame(ui);
+        let r = ui.interact(KNOB, Id::unique("rate knob"), Sense::click_and_drag());
+        gesture::knob(ui, host, &r, param.get());
+    };
+    let press = |at, pressed| egui::Event::PointerButton {
+        pos: at,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::NONE,
+    };
+    let at = KNOB.center();
+    w.pass(vec![egui::Event::PointerMoved(at)], Modifiers::NONE, &mut run);
+    w.pass(vec![press(at, true)], Modifiers::NONE, &mut run);
+    w.pass(vec![egui::Event::PointerMoved(at - vec2(0.0, 20.0))], Modifiers::NONE, &mut run);
+    // Sync turned on mid-drag (automation, or another control's MIDI learn):
+    // the knob now draws Sync Rate, with the same widget ID.
+    param.set("sync_rate");
+    w.pass(vec![egui::Event::PointerMoved(at - vec2(0.0, 40.0))], Modifiers::NONE, &mut run);
+    w.pass(vec![press(at - vec2(0.0, 40.0), false)], Modifiers::NONE, &mut run);
+    w.idle(&mut run);
+}
+
+fn rate_host() -> FakeHost {
+    FakeHost::new(&[("rate", 0.0), ("sync_rate", 0.0)])
+}
+
+#[test]
+fn w_3b_a_drag_keeps_setting_the_parameter_it_began_with() {
+    // Before W-3b: `begin rate, set rate, set sync_rate, end rate`, a set of
+    // Sync Rate with no gesture open (the review of W-3).
+    let host = rate_host();
+    drag_while_the_knob_changes_parameter(&host, &mut |_| {});
+    let gestures = host.take();
+    assert_eq!(gestures, ["begin rate", "set rate", "set rate", "end rate"]);
+    every_set_inside_its_gesture(&gestures);
+    // The whole 40 points went to Rate, 40 / DRAG_RANGE of its travel.
+    assert!((host.get("rate") - 40.0 / DRAG_RANGE).abs() < 1e-5, "{}", host.get("rate"));
+    assert_eq!(host.get("sync_rate"), 0.0, "Sync Rate untouched");
+}
+
+#[test]
+fn w_3b_the_next_drag_begins_on_the_parameter_the_knob_now_draws() {
+    let host = rate_host();
+    drag_while_the_knob_changes_parameter(&host, &mut |_| {});
+    host.take();
+    let mut w = Window::new(vec2(300.0, 120.0));
+    let mut run = |ui: &mut Ui| {
+        let r = ui.interact(KNOB, Id::unique("rate knob"), Sense::click_and_drag());
+        gesture::knob(ui, &host, &r, "sync_rate");
+    };
+    w.drag(KNOB.center(), &[vec2(0.0, -20.0)], Modifiers::NONE, &mut run);
+    one_drag(&host.take(), "sync_rate");
+    assert!((host.get("sync_rate") - 20.0 / DRAG_RANGE).abs() < 1e-5, "{}", host.get("sync_rate"));
+}
+
+#[test]
+fn w_3b_through_held_edits_under_each_modelled_host_the_drag_stays_rates() {
+    // The same drag through held edits, under each of the three modelled
+    // hosts (B-PNL-11): one gesture on Rate, and Rate gets the drag's value
+    // (under `WhileOpen` a set outside a gesture would be lost).
+    use panelwerk_panel::hold::Held;
+    use panelwerk_testkit::MODELS;
+    struct Frame<'a>(&'a FakeHost, &'a Held);
+    impl panelwerk_panel::ParamHost for Frame<'_> {
+        fn value(&self, id: &str) -> f32 {
+            self.0.value(id)
+        }
+        fn default_value(&self, id: &str) -> f32 {
+            self.0.default_value(id)
+        }
+        fn text(&self, id: &str) -> String {
+            self.0.text(id)
+        }
+        fn begin(&self, id: &str) {
+            self.1.begin(self.0, id)
+        }
+        fn set(&self, id: &str, normalized: f32) {
+            self.1.set(self.0, id, normalized)
+        }
+        fn end(&self, id: &str) {
+            self.1.end(id)
+        }
+    }
+    for model in MODELS {
+        let host = rate_host().modelled(model);
+        let held = Held::new();
+        let frame = Frame(&host, &held);
+        drag_while_the_knob_changes_parameter(&frame, &mut |ui| {
+            host.process();
+            let _ = held.frame(&host, ui.input(|i| i.time));
+        });
+        host.process();
+        held.close(&host);
+        let gestures = host.take();
+        every_set_inside_its_gesture(&gestures);
+        assert!(gestures.iter().all(|g| g.ends_with(" rate")), "{model:?}: {gestures:?}");
+        assert!((host.get("rate") - 40.0 / DRAG_RANGE).abs() < 1e-5, "{model:?}: {}", host.get("rate"));
+        assert_eq!(host.get("sync_rate"), 0.0, "{model:?}");
+    }
+}
+
+#[test]
+fn w_3b_the_next_drag_in_the_same_window_begins_on_the_parameter_now_drawn() {
+    // As the test above, in the window the first drag ran in: nothing it
+    // left in egui's memory (its open-drag record, its drag position) sends
+    // the second drag to Rate, or starts it from Rate's value.
+    let host = rate_host();
+    let mut w = Window::new(vec2(300.0, 120.0));
+    drag_in_while_the_knob_changes_parameter(&mut w, &host, &mut |_| {});
+    host.take();
+    let mut run = |ui: &mut Ui| {
+        let r = ui.interact(KNOB, Id::unique("rate knob"), Sense::click_and_drag());
+        gesture::knob(ui, &host, &r, "sync_rate");
+    };
+    w.drag(KNOB.center(), &[vec2(0.0, -20.0)], Modifiers::NONE, &mut run);
+    one_drag(&host.take(), "sync_rate");
+    assert!((host.get("sync_rate") - 20.0 / DRAG_RANGE).abs() < 1e-5, "{}", host.get("sync_rate"));
+    assert!((host.get("rate") - 40.0 / DRAG_RANGE).abs() < 1e-5, "Rate as the first drag left it: {}", host.get("rate"));
+}
+
+#[test]
+fn w_3b_a_knob_not_drawn_as_its_drag_starts_sends_nothing() {
+    // The knob is pressed, then not drawn on the pass where egui decides the
+    // drag has started, so it never sees `drag_started` and no gesture is
+    // begun. Drawn again for the rest of the drag, it is dragged with no
+    // gesture open: the whole drag is dropped (no begin, set or end, the
+    // value unchanged) rather than send a set outside any gesture.
+    let host = rate_host();
+    let shown = std::cell::Cell::new(true);
+    let mut run = |ui: &mut Ui| {
+        if shown.get() {
+            let r = ui.interact(KNOB, Id::unique("rate knob"), Sense::click_and_drag());
+            gesture::knob(ui, &host, &r, "rate");
+        }
+    };
+    let mut w = Window::new(vec2(300.0, 120.0));
+    let press = |at, pressed| egui::Event::PointerButton {
+        pos: at,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::NONE,
+    };
+    let at = KNOB.center();
+    w.pass(vec![egui::Event::PointerMoved(at)], Modifiers::NONE, &mut run);
+    w.pass(vec![press(at, true)], Modifiers::NONE, &mut run);
+    shown.set(false);
+    w.pass(vec![egui::Event::PointerMoved(at - vec2(0.0, 20.0))], Modifiers::NONE, &mut run);
+    shown.set(true);
+    w.pass(vec![egui::Event::PointerMoved(at - vec2(0.0, 40.0))], Modifiers::NONE, &mut run);
+    w.pass(vec![egui::Event::PointerMoved(at - vec2(0.0, 60.0))], Modifiers::NONE, &mut run);
+    w.pass(vec![press(at - vec2(0.0, 60.0), false)], Modifiers::NONE, &mut run);
+    w.idle(&mut run);
+    assert_eq!(host.take(), Vec::<String>::new());
+    assert_eq!(host.get("rate"), 0.0);
+}
