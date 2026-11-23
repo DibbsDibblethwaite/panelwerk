@@ -41,6 +41,13 @@ pub const PENDING_FOR: f64 = 0.5;
 /// it mid-drag): the next call of `knob` or [`toggle_on_click`] for any
 /// control in the window ends it, through that call's `host` (W-3).
 ///
+/// A drag keeps setting the parameter it began on until it ends, even if a
+/// later call gives this knob (the same widget ID) another `param`, as a
+/// knob that draws Sync Rate in place of Rate once Sync is on does: its sets
+/// and its end go to the parameter begun, so the host never gets a value
+/// for a parameter with no gesture open (W-3b). The new `param` is used
+/// from the next drag or double-click on.
+///
 /// **Every control in a window must be given the same host**: a lost
 /// drag's end goes through the host of whichever control is drawn next, so
 /// with two hosts one could get the drag's `begin` and sets and the other
@@ -76,13 +83,20 @@ fn knob_drag(ui: &Ui, host: &dyn ParamHost, response: &Response, param: &str) {
     } else {
         response.drag_delta().y
     };
-    if response.dragged() && dy != 0.0 {
+    // W-3b: the parameter the drag began on, not the one the knob draws now.
+    // A knob can keep its widget ID while its parameter changes mid-drag
+    // (Kör's Rate becomes Sync Rate when Sync is turned on); a set of the new
+    // one would reach the host with no gesture open on it, and the drag's
+    // end goes to the one begun (`end_drag`). With no drag of this widget
+    // open there is no gesture to set within, so nothing is set.
+    let began = drag_param(ui, response.id);
+    if let Some(began) = began.filter(|_| response.dragged() && dy != 0.0) {
         let fine = ui.input(|i| i.modifiers.ctrl || i.modifiers.shift);
         let range = if fine { DRAG_RANGE * FINE } else { DRAG_RANGE };
         let from = ui.data(|d| d.get_temp::<f32>(dragged)).unwrap_or_default();
         let to = (from - dy / range).clamp(0.0, 1.0);
         ui.data_mut(|d| d.insert_temp(dragged, to));
-        set(ui, host, param, to);
+        set(ui, host, &began, to);
     }
     // The knob's own end. With `end_lost_drags` after it in `knob`, which
     // finds this widget no longer dragged in the same call, deleting this
@@ -91,6 +105,12 @@ fn knob_drag(ui: &Ui, host: &dyn ParamHost, response: &Response, param: &str) {
     if response.drag_stopped() {
         end_drag(ui, host, response.id);
     }
+}
+
+/// The parameter the open drag of widget `widget` began on, if one is open.
+fn drag_param(ui: &Ui, widget: Id) -> Option<String> {
+    ui.data(|d| d.get_temp::<Vec<(Id, String)>>(open_drags_id()))
+        .and_then(|drags| drags.into_iter().find(|(w, _)| *w == widget).map(|(_, p)| p))
 }
 
 /// Ends, for `host`, the knob drag begun on widget `widget`, if it is still
