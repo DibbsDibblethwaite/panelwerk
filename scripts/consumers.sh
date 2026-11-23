@@ -120,6 +120,7 @@ cat >"$work/.cargo/config.toml" <<CONFIG
 panelwerk-text = { path = "$root/crates/panelwerk-text" }
 panelwerk-panel = { path = "$root/crates/panelwerk-panel" }
 panelwerk-testkit = { path = "$root/crates/panelwerk-testkit" }
+panelwerk-nice = { path = "$root/crates/panelwerk-nice" }
 CONFIG
 
 failed=()
@@ -145,7 +146,7 @@ for entry in "${consumers[@]}"; do
     # A consumer takes one crate or several, so each is updated if its lock
     # has it.
     crates=()
-    for c in panelwerk-text panelwerk-panel panelwerk-testkit; do
+    for c in panelwerk-text panelwerk-panel panelwerk-testkit panelwerk-nice; do
         grep -q "^name = \"$c\"" "$clone/Cargo.lock" && crates+=("$c")
     done
     if ((${#crates[@]} == 0)) || ! (cd "$clone" && cargo update --quiet "${crates[@]}"); then
