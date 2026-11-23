@@ -14,7 +14,7 @@ mod support;
 mod vst3_host;
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use nice_plug::context::gui::AsyncExecutor;
 use nice_plug::editor::dpi::NativeSize;
@@ -30,7 +30,8 @@ use vst3_host::panel::{StandIn, Task};
 static RAN_UNTIL_CLOSED: AtomicBool = AtomicBool::new(false);
 
 /// A window's own handle that records each call made on it, and, as it is
-/// dropped, how many tasks had been queued by then.
+/// dropped or hidden, how many tasks had been queued by then (the edits are
+/// to be handed on first, as Kör's and Fläns's handles do).
 struct Spy {
     calls: Arc<Mutex<Vec<String>>>,
     queued: Arc<Mutex<Vec<EndEdits>>>,
@@ -38,13 +39,19 @@ struct Spy {
 
 impl Spy {
     fn log(&self, call: &str) {
-        self.calls.lock().unwrap().push(call.to_owned());
+        // Not `unwrap`: a failed test can drop the spy while unwinding with
+        // the lock poisoned, and a second panic would abort the binary.
+        self.calls.lock().unwrap_or_else(PoisonError::into_inner).push(call.to_owned());
+    }
+
+    fn queued(&self) -> usize {
+        self.queued.lock().unwrap_or_else(PoisonError::into_inner).len()
     }
 }
 
 impl Drop for Spy {
     fn drop(&mut self) {
-        let queued = self.queued.lock().unwrap().len();
+        let queued = self.queued();
         self.log(&format!("dropped, {queued} queued"));
     }
 }
@@ -66,7 +73,8 @@ impl EditorHandle for Spy {
         Ok(())
     }
     fn hide(&self, _window: &()) -> Result<(), std::fmt::Error> {
-        self.log("hide");
+        let queued = self.queued();
+        self.log(&format!("hide, {queued} queued"));
         Err(std::fmt::Error)
     }
     fn set_size(&self, new_size: NativeSize<u32>, _window: &()) -> Result<(), std::fmt::Error> {
@@ -203,7 +211,7 @@ fn w_2b_hiding_the_window_hands_every_edit_open_or_waiting_to_be_ended_in_the_or
     // is made, its error passed on, and both edits are handed over in one
     // task, in the order begun, the host told nothing now.
     assert_eq!(p.handle().hide(&()), Err(std::fmt::Error));
-    assert_eq!(p.calls(), ["hide"]);
+    assert_eq!(p.calls(), ["hide, 1 queued"], "the edits handed on before the window's own hide");
     let task = p.queued.lock().unwrap().pop().expect("one task");
     assert_eq!(task.ids(), ["on", "mix"]);
     assert_eq!(p.recorder.take(), Vec::<String>::new(), "nothing told inside the host's call");
@@ -230,7 +238,7 @@ fn w_2b_hiding_the_window_hands_every_edit_open_or_waiting_to_be_ended_in_the_or
 fn w_2b_a_hide_with_nothing_open_queues_nothing() {
     let p = Panel::new(false);
     assert_eq!(p.handle().hide(&()), Err(std::fmt::Error));
-    assert_eq!(p.calls(), ["hide"]);
+    assert_eq!(p.calls(), ["hide, 0 queued"]);
     assert_eq!(p.queued(), Vec::<Vec<String>>::new(), "no task, so no thread to queue it");
 }
 
@@ -411,9 +419,11 @@ fn w_2b_queue_later_gives_each_task_from_a_thread_of_its_own_and_returns_once_it
     // host's call that closes the window, which is the fault `queue_later`
     // exists to avoid: so the task must be given from another thread. And
     // given before `queue_later`'s closure returns, so the close has handed
-    // it on before the window goes. (Natively nice-plug's VST3 queue is a
-    // worker thread, so `close.rs` can't tell a task given in place from
-    // one given from a thread; this can.)
+    // it on before the window goes. Two tests guard it: this one, on any
+    // executor, and `close.rs`, through the real wrapper, where natively
+    // the test's thread is nice-plug's main thread, so a task given in
+    // place runs inside `removed()` and panics there on the editor's
+    // double borrow (seen 3 runs of 3, the W-2b review).
     let given: Arc<Mutex<Vec<(std::thread::ThreadId, &'static str)>>> = Arc::default();
     let to_given = given.clone();
     let executor = AsyncExecutor::<StandIn>::new(
@@ -449,7 +459,7 @@ fn w_2b_the_frame_s_host_reads_the_plugin_s_values_as_the_adapter_does() {
     arrives(&p.params.time, 0.25);
     let read = std::cell::RefCell::new(Vec::new());
     frame(&Context::default(), FRAME, vec![], |ui| {
-        p.edits.frame(ui, |host| {
+        p.edits.frame(ui, |_, host| {
             read.borrow_mut().extend([
                 (host.value("time"), host.default_value("time"), host.text("time")),
                 (host.value("on"), host.default_value("on"), host.text("on")),

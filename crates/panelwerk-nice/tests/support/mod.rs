@@ -77,7 +77,7 @@ pub fn frame(ctx: &Context, now: f64, events: Vec<Event>, run: impl FnMut(&mut U
 /// single instantiation).
 pub fn panel_frame(edits: &HeldEdits, ctx: &Context, now: f64, events: Vec<Event>) -> (bool, FullOutput) {
     let mut drawn = false;
-    let out = frame(ctx, now, events, |ui| drawn = edits.frame(ui, |host| draw(ui, host)).is_some());
+    let out = frame(ctx, now, events, |ui| drawn = edits.frame(ui, draw).is_some());
     (drawn, out)
 }
 
@@ -93,7 +93,9 @@ pub const TIME: Rect = Rect::from_min_max(pos2(110.0, 10.0), pos2(150.0, 50.0));
 
 /// The panel: the switch and the two knobs, each worked by Panelwerk's
 /// gestures through `host`, as a consumer's panel works its controls.
-pub fn draw(ui: &Ui, host: &dyn ParamHost) {
+/// It takes `&mut Ui`, as Kör's and Fläns's `panel` do, so the tests call
+/// [`HeldEdits::frame`] as those plugins must.
+pub fn draw(ui: &mut Ui, host: &dyn ParamHost) {
     let on = ui.interact(ON, Id::unique("on"), Sense::click());
     gesture::toggle_on_click(ui, host, &on, "on");
     for (rect, id) in [(MIX, "mix"), (TIME, "time")] {

@@ -61,21 +61,24 @@ impl HeldEdits {
 
     /// One frame (in nice-plug-egui's `ui`): the held edits whose values
     /// have arrived are ended first, at egui's input time (the panel's
-    /// clock), then `draw` draws the panel with the host it is to be given,
-    /// whose begins, sets and ends go through the held edits; while an edit
-    /// still waits, another frame is asked for, since the window draws only
-    /// when asked and the edit would otherwise end only at the next input.
-    /// Before [`Self::open`], nothing: `None`, and `draw` isn't called.
+    /// clock), then `draw` draws the panel in `ui` with the host it is to be
+    /// given, whose begins, sets and ends go through the held edits; while
+    /// an edit still waits, another frame is asked for, since the window
+    /// draws only when asked and the edit would otherwise end only at the
+    /// next input. Before [`Self::open`], nothing: `None`, and `draw` isn't
+    /// called. `ui` is handed on, mutable, because a consumer's panel takes
+    /// `&mut Ui` (Kör's and Fläns's `panel(ui, host)`), which a closure
+    /// couldn't borrow while `frame` held it too.
     ///
     /// Every control in the window must be drawn with this one host
     /// (`gesture::knob`'s doc): a consumer's own host trait (zoom, its
     /// extras) wraps it, passing `ParamHost`'s calls straight through.
-    pub fn frame<R>(&self, ui: &egui::Ui, draw: impl FnOnce(&dyn ParamHost) -> R) -> Option<R> {
+    pub fn frame<R>(&self, ui: &mut egui::Ui, draw: impl FnOnce(&mut egui::Ui, &dyn ParamHost) -> R) -> Option<R> {
         let gui = self.gui.as_ref()?;
         let held = self.held.lock().unwrap_or_else(PoisonError::into_inner);
         let raw = Adapter::new(&self.map, gui);
         let waits = held.frame(&raw, ui.input(|i| i.time));
-        let drawn = draw(&Edits { raw: &raw, held: &held });
+        let drawn = draw(ui, &Edits { raw: &raw, held: &held });
         if waits {
             ui.ctx().request_repaint();
         }

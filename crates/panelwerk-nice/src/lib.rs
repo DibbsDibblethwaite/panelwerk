@@ -29,14 +29,15 @@
 //!   with the GUI context and the `queue_later` ends, makes the window, and
 //!   returns the window's handle wrapped with [`Leaving::around`];
 //! - the app's `build` calls [`HeldEdits::open`], and its `ui` draws the
-//!   panel inside [`HeldEdits::frame`], with the host it gives (wrapped in
-//!   the consumer's own, for its zoom and its extras).
+//!   panel inside [`HeldEdits::frame`], with the `ui` and the host it
+//!   hands on (`edits.frame(ui, |ui, host| panel(ui, &Frame { host, … }))`,
+//!   the host wrapped in the consumer's own, for its zoom and its extras).
 //!
 //! ```
 //! use std::sync::Arc;
 //! use nice_plug::prelude::*;
 //! use panelwerk_nice::{queue_later, EndEdits, HeldEdits, Ends};
-//! use panelwerk_panel::egui;
+//! use panelwerk_panel::{egui, ParamHost};
 //!
 //! #[derive(Params)]
 //! struct Knobs {
@@ -60,6 +61,13 @@
 //!         MainTask::EndEdits(ends) => ends.run(),
 //!     }
 //! }
+//! /// The plugin's panel: in `ui`, every control worked through `host`
+//! /// (a consumer's own host trait would wrap it). Here, one value's text.
+//! fn panel(ui: &mut egui::Ui, host: &dyn ParamHost) -> String {
+//!     let text = host.text("on");
+//!     ui.label(&text);
+//!     text
+//! }
 //! /// In `Plugin::editor(&mut self, executor)`, for the editor to keep.
 //! fn ends_for<P: Plugin<BackgroundTask = MainTask>>(executor: AsyncExecutor<P>) -> Ends {
 //!     queue_later(executor)
@@ -72,10 +80,7 @@
 //! // app's `build`, `edits.open(gui_context)`. In its `ui`:
 //! let mut window = panelwerk_testkit::Window::new(egui::vec2(100.0, 100.0));
 //! window.idle(&mut |ui| {
-//!     let drawn = edits.frame(ui, |host| {
-//!         // The panel, drawn with `host` (here, before `open`, not drawn).
-//!         host.value("on")
-//!     });
+//!     let drawn = edits.frame(ui, |ui, host| panel(ui, host));
 //!     assert_eq!(drawn, None, "nothing is drawn before the window has opened");
 //! });
 //! # let _ = (run_main_task, ends_for::<Never>);

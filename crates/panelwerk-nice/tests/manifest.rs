@@ -119,6 +119,26 @@ fn rule_15_only_the_adapter_module_has_unsafe_code_and_each_block_says_why_it_is
 }
 
 #[test]
+fn rule_15_no_source_comes_from_outside_the_files_checked() {
+    // `#[path = …] mod` and `include!` would bring in code from a file the
+    // scan above never reads, `unsafe` and its `allow` with it (found in
+    // the W-2b review: both passed every other check here). Refused rather
+    // than followed: the crate needs neither. Its modules are the two in
+    // SOURCES, declared plainly.
+    for (name, source) in SOURCES {
+        let outside: Vec<(usize, &str)> =
+            code_lines(source).filter(|(_, l)| l.contains("#[path") || l.contains("include!")).collect();
+        assert!(outside.is_empty(), "{name} takes source from elsewhere: {outside:?}");
+        let mods: Vec<&str> = code_lines(source)
+            .map(|(_, l)| l.trim())
+            .filter(|l| l.starts_with("mod ") || l.starts_with("pub mod ") || l.contains(" mod "))
+            .collect();
+        let expected: Vec<&str> = if name == "lib.rs" { vec!["mod adapter;", "mod window;"] } else { vec![] };
+        assert_eq!(mods, expected, "{name}'s modules");
+    }
+}
+
+#[test]
 fn code_lines_leaves_out_comments() {
     let source = "//! unsafe in a doc\n/// unsafe\n    // unsafe\nlet x = unsafe { y };\n";
     assert_eq!(code_lines(source).collect::<Vec<_>>(), [(3, "let x = unsafe { y };")]);
