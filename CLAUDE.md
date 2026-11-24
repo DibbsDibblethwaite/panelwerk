@@ -47,7 +47,7 @@ cargo test --workspace --doc   # the API's examples
 11. **Ask Ian** when a boundary between library and consumer needs a design decision, rather than invent it, and record the answer here or in `docs/proposal.md`.
 12. **Additions, off by default.** What a consumer needs is added as a new option, field or function whose default is today's behaviour, so every other consumer is unaffected even after it moves to the new version. A breaking change is the exception and needs Ian's agreement.
 13. **One library change at a time**, each by its own agent, test first, through this hook. An agent working on a consumer never edits the library from inside that consumer's repository; it reports what it needs, and the change is scheduled here.
-14. **The consumer check before every tag**: `scripts/consumers.sh` builds every consumer against this checkout and runs its full hook; a tag is cut only when every consumer passes, its words and look unchanged unless the change is meant to alter them (rule 6).
+14. **The consumer check before every tag**: `scripts/consumers.sh` builds every consumer against this checkout and runs its full hook; a tag is cut only when every consumer passes, or, for a breaking change Ian agreed, when a consumer's only failures are those its CHANGELOG entry names and its full hook passes in the check's clone with that entry's change applied (Ian, 2026-11-24, PW-W6B-BUILT, point 1 (a)); either way, its words and look unchanged unless the change is meant to alter them (rule 6).
 15. **`unsafe`**: none: `#![forbid(unsafe_code)]` in every crate but `panelwerk-nice`, which denies it and allows it on its adapter module alone (Ian, 2026-11-23, PW-BUILT, point 1 (a); PW-W2B-BUILT, point 2), the same framework calls Kör and Fläns make in their own copies; no other module or crate.
 
 ## Tasks
@@ -56,7 +56,7 @@ The second review's tasks (Ian, 2026-11-22, REVIEW-2-FINDINGS) are in `docs/task
 
 ## Versions and the family update
 
-Semantic versioning, one version for every crate, tags `vMAJOR.MINOR.PATCH` on `main`, cut only when the hook and the consumer check have passed; a tag is never moved or deleted. While the version is 0.x, a minor bump may break the API or change what a consumer shows (listed in `CHANGELOG.md`); a patch changes neither.
+Semantic versioning, one version for every crate, tags `vMAJOR.MINOR.PATCH` on `main`, cut only when the hook and the consumer check have passed (rule 14, which also says when a breaking change's named failures may stand); a tag is never moved or deleted. While the version is 0.x, a minor bump may break the API or change what a consumer shows (listed in `CHANGELOG.md`); a patch changes neither.
 
 **One family update moves every consumer's pins together** (Ian, 2026-11-10): after a tag, one agent moves Rödalog's, Kör's, Fläns's and Klinga's pins to it, one consumer after another, each in its own commit through its own hook, and `./scripts/consumers.sh --pins` then shows one tag. The steps are in `docs/proposal.md` §5.
 
