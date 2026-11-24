@@ -6,12 +6,12 @@ Panelwerk is the shared look and conventions of Ian Dilley's audio plugins, MIT 
 
 | Consumer | Where | What it uses | How it depends |
 | --- | --- | --- | --- |
-| **Rödalog** (Nord Lead 2X synth) | `~/code/roedalog`, branch `v3` | the text layer (step 1); the shared panel base, its Morph arcs, modulation rings and `Host` layered on top follow at its milestone P (step 3) | by pinned git tag, with a commented `[patch]` path entry in its `Cargo.toml`, as DSPWerkbank's consumers |
-| **Kör** (Juno-60 chorus) | `~/code/koer`, `main` | the text layer; the panel layer, the test kit and held edits (`hold`), all v0.4.0 | the same |
-| **Fläns** (Electric Mistress flanger) | `~/code/flaens` | the text layer; the panel layer, the test kit and held edits (`hold`), all v0.4.0 | the same |
-| **Klinga** (diffuseur effect) | `~/code/klinga`, `main` | the text layer (value text, parsers, ID convention); its panel (M6) will take the panel layer and `panelwerk-nice` (W-2) | by pinned git tag (v0.4.0), with a commented `[patch]` path entry in its `Cargo.toml`, as the others |
+| **Rödalog** (Nord Lead 2X synth) | `~/code/roedalog`, branch `v3` | the text layer (step 1), v0.5.0 on branch `pw-050` until its merge into `v3` (which pins v0.4.0 until then); the shared panel base, its Morph arcs, modulation rings and `Host` layered on top follow at its milestone P (step 3) | by pinned git tag, with a commented `[patch]` path entry in its `Cargo.toml`, as DSPWerkbank's consumers |
+| **Kör** (Juno-60 chorus) | `~/code/koer`, `main` | the text layer; the panel layer, the test kit and held edits (`hold`), all v0.5.0 | the same |
+| **Fläns** (Electric Mistress flanger) | `~/code/flaens` | the text layer; the panel layer, the test kit and held edits (`hold`), all v0.5.0 | the same |
+| **Klinga** (diffuseur effect) | `~/code/klinga`, `main` | the text layer (value text, parsers, ID convention); its panel (M6) will take the panel layer and `panelwerk-nice` (W-2) | by pinned git tag (v0.5.0), with a commented `[patch]` path entry in its `Cargo.toml`, as the others |
 
-**Four plugins depend on it, all pinning v0.4.0.** **A change must keep every consumer's displayed words and look as they are**, unless the change is meant to alter them (rule 6). Before committing a change to anything a consumer uses, run `./scripts/consumers.sh` (rule 14), which never touches a consumer's tree.
+**Four plugins depend on it, all pinning v0.5.0** (Rödalog's on branch `pw-050` until its merge into `v3`). **A change must keep every consumer's displayed words and look as they are**, unless the change is meant to alter them (rule 6). Before committing a change to anything a consumer uses, run `./scripts/consumers.sh` (rule 14), which never touches a consumer's tree.
 
 ## Layout
 

@@ -7,7 +7,7 @@ The shared look and conventions of Ian Dilley's audio plugins (Rödalog, Kör, F
 - `panelwerk-nice`: held edits' nice-plug side, for a plugin on nice-plug 0.4.2: the panel's `ParamHost` over the plugin's parameters (`shows` comparing plain values), a window's held edits each frame, and the edits still open as the window closes or hides handed to the main thread. The one crate here that depends on nice-plug, and the one with `unsafe` (its adapter module only).
 - `panelwerk-testkit`: dev-only, for the panel's and its consumers' tests: a fake host that records gestures (and can model three hosts' handling of them), a headless window.
 
-Built so far: `panelwerk-text` (v0.1.0, v0.2.0), `panelwerk-panel`'s step 2 (v0.3.0) and its held edits (v0.4.0), and `panelwerk-nice` (unreleased, W-2b). `docs/proposal.md` is the plan, §9 the text layer as built, §10 the panel's step 2 and §12 where v0.4.0's API is. `CHANGELOG.md` says what each version changed. `CLAUDE.md` has the rules and the consumers.
+Built so far: `panelwerk-text` (v0.1.0, v0.2.0), `panelwerk-panel`'s step 2 (v0.3.0) and its held edits (v0.4.0), and `panelwerk-nice` (v0.5.0, W-2b, with the second review's other changes). `docs/proposal.md` is the plan, §9 the text layer as built, §10 the panel's step 2 and §12 where v0.4.0's API is. `CHANGELOG.md` says what each version changed. `CLAUDE.md` has the rules and the consumers.
 
 ## Licence
 
