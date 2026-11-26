@@ -444,8 +444,9 @@ pub fn menu_row(at: Pos2, k: usize) -> Rect {
 
 /// The zoom menu, while open, its rows from `at` down: the range's sizes,
 /// the current one in white and the others in the choices' grey, as
-/// Rödalog's lists; a click on one chooses it, and any click closes the
-/// menu (not the right-click that opened it). Run once a pass, after the
+/// Rödalog's lists; a click on one chooses it (told to the host once the
+/// window has taken it: [`follow`]), and any click closes the menu (not the
+/// right-click that opened it). Run once a pass, after the
 /// controls, so it is drawn over them.
 pub fn menu(ctx: &Context, host: &dyn ZoomHost, range: &Range, at: Pos2) {
     // No guard for an empty menu here (W-6 had one): `Range::new` is the
