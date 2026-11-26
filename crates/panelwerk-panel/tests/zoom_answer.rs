@@ -13,13 +13,16 @@
 //! early on an unchanged size). The child takes the size asked at once, as
 //! egui-baseview's own resize does; the host's answer then lands as the
 //! test's [`Answer`] says, before the next pass or, for a late answer, one
-//! pass later.
+//! pass later. egui is given the display's scale as egui-baseview gives it
+//! ([`Egui`]), so `follow`'s sizes in pixels are checked at 125 %.
 
 use std::cell::RefCell;
 
-use egui::{vec2, Event, Modifiers, PointerButton, Pos2, Ui, Vec2, ViewportCommand};
+use egui::{
+    vec2, Context, Event, FullOutput, Modifiers, PointerButton, Pos2, RawInput, Rect, Ui, Vec2, ViewportCommand,
+    ViewportId,
+};
 use panelwerk_panel::zoom::{self, Range, ZoomHost, ANSWER_WITHIN};
-use panelwerk_testkit::Window;
 
 /// A range wide enough for Rödalog's 90 % and the menu sizes the tests
 /// choose; a test range, not a consumer's.
@@ -40,9 +43,53 @@ const ROUNDS: usize = 40;
 /// The passes over which a settled window keeps its size: more than the two
 /// passes a request and its answer take, so a resize every pass shows.
 const SETTLED_OVER: usize = 4;
-/// The design's cure: at most one request per zoom (ZOOM-DRIFT-CURE, the
-/// card's "What the cure does").
+/// The design's cure: at most one request per zoom (the design's §4, (iii),
+/// "face 2: at most one request per zoom", `docs/proposals/zoom-drift-cure.md`;
+/// ZOOM-DRIFT-CURE, the card's "What the cure does").
 const ONE_REQUEST: usize = 1;
+/// How far egui's input time moves each pass, in seconds: a tenth, as the
+/// test kit's window steps it. Named here, as the wait test's gaps are
+/// worked from it ([`ANSWER_WITHIN`] against the time between two passes).
+const FRAME: f64 = 0.1;
+/// A display at 300 %, for the display-scale test: there a pixel is a third
+/// of a point, inside [`zoom`]'s half-pixel tolerance if sizes were worked in
+/// points, so a size worked without the display's scale shows. At 125 % or
+/// 200 % a pixel is half a point or more, and egui's rounding of the screen
+/// to 1/32 point decides which side of the tolerance it falls.
+const SCALE_300: f32 = 3.0;
+
+/// The window as egui-baseview feeds egui each pass: its screen in points,
+/// its clock, and the display's scale as `native_pixels_per_point`
+/// (egui-baseview 0.9 `window.rs` sets it at the window's build and at
+/// every `resized`), which `follow` multiplies its sizes by. Not the test
+/// kit's `Window`: that gives egui no display scale, so a `follow` that
+/// left it out would pass at 125 % too, and a field for it in the kit is a
+/// change to the kit's public API, Ian's to agree first (rule 2).
+struct Egui {
+    ctx: Context,
+    /// The input time of the last pass, in seconds.
+    time: f64,
+    /// The screen in points.
+    screen: Vec2,
+    /// The display's scale.
+    native: f32,
+}
+
+impl Egui {
+    fn pass(&mut self, events: Vec<Event>, run: &mut dyn FnMut(&mut Ui)) -> FullOutput {
+        self.time += FRAME;
+        let mut input = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, self.screen)),
+            time: Some(self.time),
+            events,
+            ..RawInput::default()
+        };
+        input.viewports.entry(ViewportId::ROOT).or_default().native_pixels_per_point = Some(self.native);
+        let mut output = self.ctx.run_ui(input, |ui| run(ui));
+        output.textures_delta.clear();
+        output
+    }
+}
 
 /// The plugin's side: every zoom told it, by which call, and whether its
 /// window code pairs requests and answers itself (the design's (B)).
@@ -88,7 +135,7 @@ fn panel(ui: &mut Ui, plugin: &Plugin, base: Vec2) {
 
 /// The panel's window in a host, as the module's note models it.
 struct Hosted {
-    w: Window,
+    w: Egui,
     plugin: Plugin,
     base: Vec2,
     /// The window's size in physical pixels.
@@ -115,7 +162,7 @@ impl Hosted {
     /// baseview asks for at its show (patch 10's queued request), which
     /// lands before the second pass.
     fn open(base: Vec2, zoom: f32, scale: f32, answer: Answer, paired: bool) -> Self {
-        let w = Window::new(base);
+        let w = Egui { ctx: Context::default(), time: 0.0, screen: base, native: scale };
         w.ctx.set_zoom_factor(zoom);
         let mut h = Hosted {
             w,
@@ -154,8 +201,7 @@ impl Hosted {
     fn pass(&mut self, events: Vec<Event>) {
         self.w.screen = self.pixels / (self.scale * self.seen);
         let (plugin, base) = (&self.plugin, self.base);
-        let commands = self.w.pass(events, Modifiers::NONE, &mut |ui| panel(ui, plugin, base)).viewport_output
-            [&egui::ViewportId::ROOT]
+        let commands = self.w.pass(events, &mut |ui| panel(ui, plugin, base)).viewport_output[&ViewportId::ROOT]
             .commands
             .clone();
         self.drawn.push(self.w.ctx.zoom_factor());
@@ -361,8 +407,10 @@ fn zoom_drift_cure_a_two_step_corner_drag_to_175_percent_loses_no_step() {
     // took effect on (gap 2: the pass the first prototype read as an
     // answer), or on the pass after that (gap 3), as the fact-check's probe.
     // Not gap 1, the step landing before the zoom takes effect: egui shows
-    // that pass the last pass's window, and the panel asks for the first
-    // step's size over it, as v0.5.0 did (not in the design; reported).
+    // that pass the last pass's window, so the panel asks for the first
+    // step's size over it, as v0.5.0 did, and awaits no answer, so a host
+    // answering a pixel short gives one drift step, followed and saved (not
+    // in the design; open, Ian's card ZOOM-DRAG-STEP; `follow`'s note).
     for gap in [2, 3] {
         for scale in [1.0, SCALE_125] {
             let mut h = Hosted::open(BASE, 1.0, scale, Answer::Exact, false);
@@ -394,18 +442,21 @@ fn zoom_drift_cure_a_two_step_corner_drag_to_175_percent_loses_no_step() {
 
 #[test]
 fn zoom_drift_cure_a_size_seen_within_the_wait_is_the_answer_and_after_it_the_hosts_own() {
-    for (wait, own) in [(ANSWER_WITHIN / 2.0, false), (ANSWER_WITHIN * 2.0, true)] {
+    for (gap, own) in [(ANSWER_WITHIN / 2.0, false), (ANSWER_WITHIN * 2.0, true)] {
         let mut h = Hosted::open(BASE, 1.0, 1.0, Answer::Exact, false);
         h.idle(1);
         h.choose(1.25);
+        // The pass the zoom takes effect on asks for its size, at its time.
         h.idle(1);
         assert_eq!(h.requests.len(), 1);
-        // The next frame comes `wait` after the request (frames come on
-        // demand, so it may be seconds), the window then dragged to 150 %.
-        h.w.time += wait;
+        // The next frame comes `gap` after that pass (frames come on demand,
+        // so it may be seconds), the window then dragged to 150 %: the clock
+        // moved on by the gap less the step the next pass adds itself.
+        assert!(FRAME < gap, "a gap of {gap} s can't be made with passes {FRAME} s apart");
+        h.w.time += gap - FRAME;
         h.pixels = h.panel_at(1.5);
         h.idle(8);
-        let at = format!("after {wait} s");
+        let at = format!("{gap} s after the request");
         assert_eq!(h.chosen(), [1.25], "{at}");
         if own {
             assert_eq!((h.zoom(), h.followed()), (1.5, vec![1.5]), "{at}: a drag after the wait is followed");
@@ -434,6 +485,10 @@ fn zoom_drift_cure_with_answers_paired_a_host_size_on_the_next_pass_is_followed(
     assert_eq!((h.zoom(), h.followed()), (1.75, vec![1.5, 1.75]), "on the menu's answer pass");
 }
 
+/// A check of the model's window part, not of `follow`: with (B) keeping
+/// the late answer off the window, the window only ever has the size asked,
+/// so v0.5.0's `follow` passes it too. It belongs to W-D3's window part,
+/// whose own tests will check the pairing that this model assumes.
 #[test]
 fn zoom_drift_cure_with_answers_paired_a_late_answer_kept_off_the_window_asks_once() {
     let mut h = Hosted::open(BASE, 1.0, SCALE_125, Answer::Short(1.0), true);
@@ -479,10 +534,75 @@ fn zoom_drift_cure_a_refusal_reported_with_no_menu_choice_changes_no_zoom() {
     // (B) reports a CLAP `false` with no menu choice waiting (here nothing
     // waits at all; in a host, the panel asking for its own width after a
     // drag off the aspect ratio): there is no choice to undo.
-    let mut h = Hosted::open(BASE, 1.0, 1.0, Answer::Exact, true);
+    // Opened at 125 %, so a `refused` that put the zoom back to 100 % shows.
+    let mut h = Hosted::open(BASE, 1.25, 1.0, Answer::Exact, true);
     h.idle(1);
     zoom::refused(&h.w.ctx);
     h.idle(4);
-    assert_eq!(h.zoom(), 1.0);
+    assert_eq!(h.zoom(), 1.25);
     assert!(h.chosen().is_empty() && h.followed().is_empty());
+}
+
+#[test]
+fn zoom_drift_cure_with_answers_paired_a_refused_request_to_go_back_to_the_shape_is_asked_once() {
+    // The corner dragged 100 px wider, off the aspect ratio: the panel asks
+    // for its own shape, and a CLAP host refuses (baseview puts the window
+    // back; (B) reports it). The window is then as it was before the
+    // request, which the panel had already seen: nothing new to follow, so
+    // it asks no more, as without (B), where the next pass is the answer.
+    for paired in [false, true] {
+        let mut h = Hosted::open(BASE, 1.0, 1.0, Answer::Exact, paired);
+        h.idle(1);
+        h.answer = Answer::Refuse;
+        let dragged = h.panel_at(1.0) + vec2(100.0, 0.0);
+        h.pixels = dragged;
+        h.idle(ROUNDS);
+        assert_eq!(h.requests.len(), ONE_REQUEST, "paired {paired}: {:?}", h.requests);
+        assert_eq!((h.zoom(), h.pixels), (1.0, dragged), "paired {paired}");
+        assert!(h.chosen().is_empty() && h.followed().is_empty(), "paired {paired}");
+    }
+}
+
+// ---- The plugin's own choice while the menu's waits ----
+
+#[test]
+fn zoom_drift_cure_choose_while_a_menu_choice_waits_replaces_it() {
+    // `zoom::choose` (the plugin's own zoom) on the pass after a menu click,
+    // before its zoom has taken effect (0), or after its size was asked for
+    // and before it is judged (1): the plugin's choice replaces the menu's,
+    // which is neither told nor undone.
+    for after in [0, 1] {
+        let mut h = Hosted::open(BASE, 1.0, 1.0, Answer::Exact, false);
+        h.idle(1);
+        h.choose(1.5);
+        h.idle(after);
+        let from = h.drawn.len();
+        zoom::choose(&h.w.ctx, &h.plugin, &RANGE, 2.0);
+        h.idle(ROUNDS);
+        assert_eq!(h.chosen(), [2.0], "after {after}: the plugin's zoom told, once, the menu's not");
+        assert_eq!((h.zoom(), h.pixels), (2.0, h.panel_at(2.0)), "after {after}: {:?}", h.sizes);
+        assert!(h.drawn[from..].iter().all(|z| *z == 2.0), "after {after}: drawn {:?}", &h.drawn[from..]);
+        assert!(h.followed().is_empty(), "after {after}: {:?}", h.followed());
+    }
+}
+
+// ---- The display's scale ----
+
+#[test]
+fn zoom_drift_cure_a_drag_on_a_300_percent_display_a_pixel_off_the_shape_asks_once() {
+    // On a 300 % display the corner dragged to 150 %'s height and a pixel
+    // wider than its width: in pixels the window must change size, so the
+    // panel asks for its width and awaits the answer, which, 100 pixels
+    // short (Klinga's B-PNL-12 host), is kept. Sizes worked in points
+    // instead (the display's scale left out) would call the window already
+    // the zoom's size, await nothing, and follow the answer as a new zoom.
+    let mut h = Hosted::open(BASE, 1.0, SCALE_300, Answer::Exact, false);
+    h.idle(1);
+    h.answer = Answer::Short(100.0);
+    let dragged = h.panel_at(1.5) + vec2(1.0, 0.0);
+    h.pixels = dragged;
+    h.idle(ROUNDS);
+    assert_eq!(h.followed(), [1.5], "the drag followed once: sizes {:?}", h.sizes);
+    assert_eq!(h.zoom(), 1.5);
+    assert_eq!(h.requests.len(), ONE_REQUEST, "{:?}", h.requests);
 }

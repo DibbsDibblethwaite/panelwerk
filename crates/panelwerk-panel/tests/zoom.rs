@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use egui::{pos2, vec2, Align2, Context, Id, PointerButton, Rect, Sense, Ui, Vec2, ViewportCommand};
 use panelwerk_panel::palette::{CHOICE_TEXT, CHOSEN};
 use panelwerk_panel::settings;
-use panelwerk_panel::zoom::{self, Range, MENU_ROW};
+use panelwerk_panel::zoom::{self, Range, ZoomHost, MENU_ROW};
 use panelwerk_panel::{font, title};
 use panelwerk_testkit::{FakeHost, Window};
 
@@ -31,7 +31,7 @@ const MARKER: Rect = Rect { min: pos2(300.0, 100.0), max: pos2(340.0, 140.0) };
 
 /// A panel as a consumer's: zoom::follow first; a marker control; the name
 /// strip opening the menu on a right-click; the menu under it.
-fn panel<'a>(host: &'a FakeHost) -> impl FnMut(&mut Ui) + 'a {
+fn panel<'a>(host: &'a dyn ZoomHost) -> impl FnMut(&mut Ui) + 'a {
     move |ui: &mut Ui| {
         let ctx = ui.ctx().clone();
         zoom::follow(&ctx, host, BASE, &KOER);
@@ -145,6 +145,57 @@ fn a_host_that_refuses_the_size_is_not_asked_again_and_again() {
     assert_eq!(w.commands(), [ViewportCommand::InnerSize(BASE)]);
     w.idle(run);
     assert!(w.commands().is_empty(), "{:?}", w.commands());
+}
+
+/// A plugin whose window code pairs requests and answers (the design's (B),
+/// `ZoomHost::answers_paired`), its zooms recorded by the fake host.
+struct Paired(FakeHost);
+
+impl ZoomHost for Paired {
+    fn zoom_chosen(&self, zoom: f32) {
+        self.0.zoom_chosen(zoom);
+    }
+    fn answers_paired(&self) -> bool {
+        true
+    }
+}
+
+#[test]
+fn with_answers_paired_a_host_that_refuses_the_size_is_not_asked_again_and_again() {
+    // As the test above, with (B): it reports the refusal (`zoom::refused`)
+    // and no answer is awaited, so the window left off its shape is all the
+    // panel sees after its request.
+    let host = Paired(FakeHost::default());
+    let mut w = window();
+    let run = &mut panel(&host);
+    w.idle(run);
+    w.idle(run);
+    w.screen = vec2(600.0, 280.0);
+    w.idle(run);
+    assert_eq!(w.commands(), [ViewportCommand::InnerSize(BASE)]);
+    zoom::refused(&w.ctx);
+    w.idle(run);
+    assert!(w.commands().is_empty(), "{:?}", w.commands());
+    w.idle(run);
+    assert!(w.commands().is_empty(), "{:?}", w.commands());
+    assert!(host.0.zooms.borrow().is_empty(), "{:?}", host.0.zooms.borrow());
+}
+
+#[test]
+fn with_answers_paired_a_refusal_before_the_first_pass_changes_nothing() {
+    // (B) reports CLAP's `false` for the size baseview asks for as it shows
+    // the window, before the panel's first pass: the panel has seen and
+    // asked nothing yet, so there is nothing to forget or undo.
+    let host = Paired(FakeHost::default());
+    let mut w = window();
+    w.ctx.set_zoom_factor(1.25);
+    zoom::refused(&w.ctx);
+    let run = &mut panel(&host);
+    w.idle(run);
+    w.idle(run);
+    assert_eq!(w.ctx.zoom_factor(), 1.25);
+    assert!(w.commands().is_empty(), "{:?}", w.commands());
+    assert!(host.0.zooms.borrow().is_empty(), "{:?}", host.0.zooms.borrow());
 }
 
 fn menu_area() -> Rect {
