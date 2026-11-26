@@ -546,6 +546,31 @@ fn w_d3_a_refused_menu_size_is_undone_by_the_very_next_frame_and_never_told() {
 }
 
 #[test]
+fn w_d3_a_refused_request_awaits_no_answer() {
+    // The review's probe (2026-11-26, W-D3's second review): a CLAP host
+    // refuses a menu size, then at once, well within ANSWER_WITHIN of the
+    // refused request, gives a size of its own. A refused request has no
+    // answer to come (`zoom::refused`'s doc: "No answer is awaited for a
+    // refused request"), so that size is the host's own: given to the
+    // window and followed, 200 %. Awaited still, it would be taken for the
+    // refused request's answer and kept off the window, which stays
+    // 520 × 280 at 100 % in a host's view of 200 %.
+    let mut h = Hosted::open(1.0, 1.0, Answer::Exact, Format::Clap);
+    h.idle(1);
+    let opened = h.requests().len();
+    h.world.answer.set(Answer::Refuse);
+    h.choose(1.5);
+    h.idle(1);
+    assert_eq!(h.requests().len(), opened + 1, "the refused request sent: {:?}", h.requests());
+    h.give(h.panel_at(2.0));
+    h.idle(4);
+    assert!(near(h.pixels(), h.panel_at(2.0)), "kept off the window: {:?} at zoom {}", h.pixels(), h.zoom());
+    assert!(h.fits(), "window {:?}, zoom {}", h.pixels(), h.zoom());
+    assert_eq!(h.followed().len(), 1, "followed once: {:?}", h.followed());
+    assert!(h.chosen().is_empty(), "the refused choice never told: {:?}", h.chosen());
+}
+
+#[test]
 fn w_d3_a_refusal_before_the_first_pass_changes_nothing() {
     // The show's request refused, before any pass gave the window part the
     // panel's context: nothing to undo, and the window opens as it was.
