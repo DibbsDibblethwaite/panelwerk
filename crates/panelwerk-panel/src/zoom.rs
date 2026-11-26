@@ -190,10 +190,12 @@ pub trait ZoomHost {
     /// requests with the host's answer, keeps the answer off the window,
     /// and reports a refusal by calling [`refused`] (the cure's window part,
     /// `docs/proposals/zoom-drift-cure.md` (B): `panelwerk_nice::Pairing`,
-    /// or a plugin's own, as Rödalog's). Then every size that
-    /// reaches the window is the host's own, but a refused request's, which
-    /// baseview puts back as the window was and [`refused`] accounts for,
-    /// and [`follow`] awaits no answer. False by default (rule 12): [`follow`]
+    /// or a plugin's own, as Rödalog's). Then every size that reaches the
+    /// window is the host's own (an answer given while the main button is
+    /// held among them: a drag, Ian, 2026-11-26, ZOOM-DRAG-STEP, point
+    /// 2 (a)), but a refused request's, which baseview puts back as the
+    /// window was and [`refused`] accounts for, and [`follow`] awaits no
+    /// answer. False by default (rule 12): [`follow`]
     /// then takes the window on the first pass after a request, if within
     /// [`ANSWER_WITHIN`] of it, as the answer.
     fn answers_paired(&self) -> bool {
