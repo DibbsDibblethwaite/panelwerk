@@ -189,7 +189,8 @@ pub trait ZoomHost {
     /// Whether the plugin's window code pairs each of the panel's resize
     /// requests with the host's answer, keeps the answer off the window,
     /// and reports a refusal by calling [`refused`] (the cure's window part,
-    /// `docs/proposals/zoom-drift-cure.md` (B)). Then every size that
+    /// `docs/proposals/zoom-drift-cure.md` (B): `panelwerk_nice::Pairing`,
+    /// or a plugin's own, as Rödalog's). Then every size that
     /// reaches the window is the host's own, but a refused request's, which
     /// baseview puts back as the window was and [`refused`] accounts for,
     /// and [`follow`] awaits no answer. False by default (rule 12): [`follow`]
@@ -216,9 +217,11 @@ pub trait ZoomHost {
 /// answer (both before the next pass, the window then the later); and in a
 /// corner drag past the range's limits or off the aspect ratio, where the
 /// panel asks the window back to its shape and the drag's next step is
-/// taken as that request's answer (open: Ian's card ZOOM-DRAG-STEP,
-/// [`follow`]'s note). The design's window part (B, task W-D3) pairs a
-/// request with its answer within the same 250 ms.
+/// taken as that request's answer ([`follow`]'s note). The design's window
+/// part (B; `panelwerk_nice::Pairing`, task W-D3) pairs a request with its
+/// answer within the same quarter second, and takes no size given while
+/// the main button is held for an answer (Ian, 2026-11-26, ZOOM-DRAG-STEP,
+/// point 2 (a)).
 pub const ANSWER_WITHIN: f64 = 0.25;
 
 /// The plugin's window code saw the host refuse the panel's last resize
@@ -380,19 +383,22 @@ fn same(a: Vec2, b: Vec2) -> bool {
 ///   ([`ZoomHost::zoom_followed`]); off the aspect ratio or past the range,
 ///   the window is asked back to its shape.
 ///
-/// Open, not cured (Ian's card ZOOM-DRAG-STEP): whether the window must
-/// change size is judged from the window as egui last gave it, which on a
-/// new zoom's pass is the last pass's window rescaled. So a corner-drag
-/// step that lands before the previous step's zoom has drawn is not seen:
-/// the request for the previous step's size reaches the host, overwrites
-/// the step, and is not awaited, so a host answering it a pixel short has
-/// its answer followed as a new zoom and saved (one drift step). And after
-/// the panel asks the window back to its shape (off the aspect ratio or
-/// past the range) the drag's next step, within [`ANSWER_WITHIN`], is taken
-/// as that request's answer and kept, not followed: dragged past the
-/// largest zoom the window stays larger than the panel; a last step back in
-/// range leaves the panel cut. The design's §4 (iii) counts it an answer,
-/// its §2 has every drag step followed.
+/// Two corner-drag cases this can't cure alone, cured in the window part
+/// (`panelwerk_nice::Pairing`; Ian, 2026-11-26, ZOOM-DRAG-STEP, points
+/// 1 (a) and 2 (a)), which sees the host's calls themselves. Without it
+/// (Kör and Fläns on this alone): whether the window must change size is
+/// judged from the window as egui last gave it, which on a new zoom's pass
+/// is the last pass's window rescaled. So a corner-drag step that lands
+/// before the previous step's zoom has drawn is not seen: the request for
+/// the previous step's size reaches the host, overwrites the step, and is
+/// not awaited, so a host answering it a pixel short has its answer
+/// followed as a new zoom and saved (one drift step). And after the panel
+/// asks the window back to its shape (off the aspect ratio or past the
+/// range) the drag's next step, within [`ANSWER_WITHIN`], is taken as that
+/// request's answer and kept, not followed: dragged past the largest zoom
+/// the window stays larger than the panel; a last step back in range
+/// leaves the panel cut. With the window part, the stale request is never
+/// sent, and a size given with the main button held is always followed.
 pub fn follow(ctx: &Context, host: &dyn ZoomHost, base: Vec2, range: &Range) {
     let screen = ctx.content_rect().size();
     let zoom = ctx.zoom_factor();
@@ -435,7 +441,8 @@ pub fn follow(ctx: &Context, host: &dyn ZoomHost, base: Vec2, range: &Range) {
     // must change size, as baseview sends the host only a size that differs
     // from the window's. Judged from `from_pixels`, the window as egui last
     // gave it: a host size that landed since isn't seen, so its request
-    // reaches the host unawaited (the open case in the note above).
+    // reaches the host unawaited (the first case in the note above, which
+    // the window part cures).
     let mut ask = |from_pixels: Vec2| {
         ctx.send_viewport_cmd(ViewportCommand::InnerSize(base));
         asked = true;
@@ -450,7 +457,7 @@ pub fn follow(ctx: &Context, host: &dyn ZoomHost, base: Vec2, range: &Range) {
         // as egui gives it (the last pass's, rescaled) already has it (a
         // corner-drag step just followed), nothing is awaited, so a following
         // drag step is followed (the fact-check's finding 1). A step that
-        // landed before this pass is the open case in the note above.
+        // landed before this pass is the first case in the note above.
         let proposed = ctx.data_mut(|d| d.remove_temp::<Proposed>(proposed_id()));
         let wanted = ask(pixels);
         match proposed {
@@ -471,7 +478,8 @@ pub fn follow(ctx: &Context, host: &dyn ZoomHost, base: Vec2, range: &Range) {
             if fits == zoom {
                 // Off the aspect ratio, or past the range: back to the size.
                 // Its answer is awaited, so a drag's next step on the next
-                // pass is kept, not followed (open, the note above).
+                // pass is kept, not followed (the second case in the note
+                // above; with `answers_paired`, nothing is awaited here).
                 ask(pixels);
             } else {
                 ctx.set_zoom_factor(fits);

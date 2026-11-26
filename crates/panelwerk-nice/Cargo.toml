@@ -1,6 +1,6 @@
 [package]
 name = "panelwerk-nice"
-description = "Panelwerk's held edits on nice-plug: the panel's ParamHost over a plugin's parameters, and the edits still open handed to the main thread as its window goes"
+description = "Panelwerk's held edits and zoom on nice-plug: the panel's ParamHost over a plugin's parameters, the edits still open handed to the main thread as its window goes, and the zoom's window part pairing resize requests with their answers"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

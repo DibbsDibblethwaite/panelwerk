@@ -378,8 +378,10 @@ fn zoom_drift_cure_a_two_step_corner_drag_to_175_percent_loses_no_step() {
     // Not gap 1, the step landing before the zoom takes effect: egui shows
     // that pass the last pass's window, so the panel asks for the first
     // step's size over it, as v0.5.0 did, and awaits no answer, so a host
-    // answering a pixel short gives one drift step, followed and saved (not
-    // in the design; open, Ian's card ZOOM-DRAG-STEP; `follow`'s note).
+    // answering a pixel short gives one drift step, followed and saved.
+    // That is cured only in the window part (Ian, 2026-11-26,
+    // ZOOM-DRAG-STEP, point 1 (a); `follow`'s note): `panelwerk-nice`'s
+    // `tests/pairing.rs` has gap 1.
     for gap in [2, 3] {
         for scale in [1.0, SCALE_125] {
             let mut h = Hosted::open(BASE, 1.0, scale, Answer::Exact, false);
@@ -456,8 +458,9 @@ fn zoom_drift_cure_with_answers_paired_a_host_size_on_the_next_pass_is_followed(
 
 /// A check of the model's window part, not of `follow`: with (B) keeping
 /// the late answer off the window, the window only ever has the size asked,
-/// so v0.5.0's `follow` passes it too. It belongs to W-D3's window part,
-/// whose own tests will check the pairing that this model assumes.
+/// so v0.5.0's `follow` passes it too. The pairing this model assumes is
+/// checked against the window part itself in `panelwerk-nice`'s
+/// `tests/pairing.rs` (W-D3), a late answer included.
 #[test]
 fn zoom_drift_cure_with_answers_paired_a_late_answer_kept_off_the_window_asks_once() {
     let mut h = Hosted::open(BASE, 1.0, SCALE_125, Answer::Short(1.0), true);

@@ -25,9 +25,10 @@ fn section_entries(manifest: &str, section: &str) -> Vec<String> {
 /// The crate's source files, by name: every module is listed here, and the
 /// test below fails on a file in `src/` that isn't, so a new module can't
 /// escape the check.
-const SOURCES: [(&str, &str); 3] = [
+const SOURCES: [(&str, &str); 4] = [
     ("lib.rs", include_str!("../src/lib.rs")),
     ("adapter.rs", include_str!("../src/adapter.rs")),
+    ("pairing.rs", include_str!("../src/pairing.rs")),
     ("window.rs", include_str!("../src/window.rs")),
 ];
 
@@ -123,7 +124,7 @@ fn rule_15_no_source_comes_from_outside_the_files_checked() {
     // `#[path = …] mod` and `include!` would bring in code from a file the
     // scan above never reads, `unsafe` and its `allow` with it (found in
     // the W-2b review: both passed every other check here). Refused rather
-    // than followed: the crate needs neither. Its modules are the two in
+    // than followed: the crate needs neither. Its modules are the ones in
     // SOURCES, declared plainly.
     for (name, source) in SOURCES {
         let outside: Vec<(usize, &str)> =
@@ -133,7 +134,7 @@ fn rule_15_no_source_comes_from_outside_the_files_checked() {
             .map(|(_, l)| l.trim())
             .filter(|l| l.starts_with("mod ") || l.starts_with("pub mod ") || l.contains(" mod "))
             .collect();
-        let expected: Vec<&str> = if name == "lib.rs" { vec!["mod adapter;", "mod window;"] } else { vec![] };
+        let expected: Vec<&str> = if name == "lib.rs" { vec!["mod adapter;", "mod pairing;", "mod window;"] } else { vec![] };
         assert_eq!(mods, expected, "{name}'s modules");
     }
 }
