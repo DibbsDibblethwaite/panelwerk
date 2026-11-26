@@ -72,6 +72,12 @@ impl Clock {
     fn add(&self, seconds: f64) {
         self.0.fetch_add(Duration::from_secs_f64(seconds).as_nanos() as u64, Ordering::SeqCst);
     }
+    /// Puts the clock back to its start, as an injected clock may go
+    /// (the wall clock `Pairing::new` uses never does: `Instant` is
+    /// monotonic).
+    fn reset(&self) {
+        self.0.store(0, Ordering::SeqCst);
+    }
     fn reading(&self) -> Arc<dyn Fn() -> Duration + Send + Sync> {
         let at = self.0.clone();
         Arc::new(move || Duration::from_nanos(at.load(Ordering::SeqCst)))
@@ -525,6 +531,24 @@ fn w_d3_a_host_size_after_the_wait_is_the_hosts_own_and_followed() {
             assert_eq!(h.pixels(), h.panel_at(1.25), "{at}");
         }
     }
+}
+
+#[test]
+fn w_d3_a_clock_gone_back_counts_no_time_since_the_request() {
+    // An injected clock (`Pairing::with_clock`) put back after a request:
+    // the time since the request is taken as none, not a panic in
+    // `set_size` on the host's GUI thread. So the host's next size is
+    // within ANSWER_WITHIN of the request, its answer, kept off the window.
+    let mut h = Hosted::open(1.0, 1.0, Answer::Exact, Format::Clap);
+    h.idle(1);
+    h.world.answer.set(Answer::None);
+    h.choose(1.25);
+    h.idle(1);
+    h.clock.reset();
+    h.give(h.panel_at(1.5));
+    h.idle(4);
+    assert_eq!((h.zoom(), h.pixels()), (1.25, h.panel_at(1.25)), "the answer, kept off the window");
+    assert!(h.followed().is_empty(), "{:?}", h.followed());
 }
 
 // ---- A refusal (CLAP's `false`; ZOOM-DRIFT-CURE point 4 (a)) ----

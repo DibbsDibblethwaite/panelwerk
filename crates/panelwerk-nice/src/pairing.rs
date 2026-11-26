@@ -209,8 +209,10 @@ impl Pairing {
 const STALE: &str = "panelwerk: a size the host gave since the panel last saw the window is kept";
 
 /// [`ANSWER_WITHIN`] as a duration: the same quarter second `zoom::follow`
-/// awaits an answer for without the window part (the design: (B) pairs
-/// "within the same 250 ms").
+/// awaits an answer for without the window part (the design's (B) pairs
+/// each request with the next host size "within 250 ms of wall-clock
+/// time"; `zoom`'s `ANSWER_WITHIN` doc says it is "within the same quarter
+/// second").
 fn within() -> Duration {
     Duration::from_secs_f64(ANSWER_WITHIN)
 }
@@ -298,7 +300,9 @@ impl<H: EditorHandle> EditorHandle for Paired<H> {
         let now = (self.pairing.clock)();
         {
             let mut s = self.pairing.state();
-            let answer = s.pending.is_some_and(|at| s.inside || now - at <= within());
+            // Saturating: an injected clock may go back (`with_clock`); then
+            // no time has passed since the request, not a panic.
+            let answer = s.pending.is_some_and(|at| s.inside || now.saturating_sub(at) <= within());
             if answer && !held {
                 s.pending = None;
                 return Ok(());
