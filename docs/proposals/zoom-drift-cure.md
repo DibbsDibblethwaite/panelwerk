@@ -12,6 +12,14 @@
 
 **The split: yes**, as §5's table (W-D1, W-D3, W-D2 here in series; R-1 to R-3 in Rödalog; K-1 in Klinga; the Windows runs; Ian's check; Kör and Fläns at their next build). The prototype diffs this design names were scratch files, not kept in this repository.
 
+**Amendment (Ian, 2026-11-26, 21:20, card ZOOM-DRAG-STEP: "As recommended: 1 (a), 2 (a), 3 yes, 4 yes, 5 yes", no note).** Two corner-drag cases W-D1's review found the design below did not settle, and so the conflict between its §2 ("Corner drags: followed every step") and its §4 (iii) ("An answer (after a menu choice, at open, after a fit or a snap)"), are decided so; the text below is left as approved, and where it differs this amendment holds:
+
+- **A drag step that lands before the previous step's zoom has drawn** (point 1 (a)) is cured in the window part, (B): the framework helper's (`panelwerk-nice`, task W-D3) and Rödalog's own window code (its task R-1), which see the window's real size at that moment. The step is not overwritten, and the panel's request for the previous step's size does not reach the host. Kör and Fläns, on the shared part (A) alone, keep the gap until they take the window part.
+- **§2 against §4 (iii)** (point 2 (a)): while the main mouse button is held, a size from the host is always a drag and is followed, never taken as an answer, the one after a snap or a fit included. It uses the same reading of the physical main button, swapped buttons handled, as point 1 (a) above uses for remembering drags, so it lives in the window part too. Without the window part, §4 (iii) stands as built: a step within `ANSWER_WITHIN` of the panel asking the window back to its shape is that request's answer. Not prototyped.
+- **`ANSWER_WITHIN` public** (point 3): kept so, and recorded in the changelog.
+- **`OFF_SIZE`'s half-point tolerance** (point 4): kept, named, recorded as carried from v0.5.0 with no source.
+- **The test kit's `Window` gains an optional display scale** (point 5), a public addition whose default is today's (none given to egui), in v0.6.0.
+
 For Ian. 2026-11-26. Research and a scratch prototype only; nothing in any repository was changed. The prototype's diffs are beside this file:
 - `prototype-panelwerk.diff`: Panelwerk's `zoom.rs` with the fact-check's corrections, plus one test given an extra pass.
 - `prototype-klinga-tests.diff`: Klinga test set-ups given extra passes, and the checker's three probes, for the experiment only.
