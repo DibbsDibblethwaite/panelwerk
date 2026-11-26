@@ -286,6 +286,9 @@ struct Hosted {
     sizes: Vec<Vec2>,
     /// The zoom each pass was drawn at.
     drawn: Vec<f32>,
+    /// Whether the next run asks egui for a second pass (a discard, as a
+    /// new `Grid` or a `Resize`'s sizing pass asks), on its first.
+    discard: bool,
 }
 
 impl Hosted {
@@ -329,6 +332,7 @@ impl Hosted {
             seen: zoom,
             sizes: vec![],
             drawn: vec![],
+            discard: false,
         };
         // Baseview's request at its show, for the size the window has.
         let shown = h.pixels();
@@ -375,11 +379,15 @@ impl Hosted {
         self.clock.add(FRAME);
         self.w.screen = self.pixels() / (self.scale * self.seen);
         let plugin = &self.plugin;
+        let discard = std::mem::take(&mut self.discard);
         let run = &mut |ui: &mut panelwerk_panel::egui::Ui| {
             let ctx = ui.ctx().clone();
             plugin.pairing.pass(&ctx);
             zoom::follow(&ctx, plugin, BASE, &RANGE);
             zoom::menu(&ctx, plugin, &RANGE, MENU_AT);
+            if discard && ctx.current_pass_index() == 0 {
+                ctx.request_discard("a second pass");
+            }
         };
         let commands = self.w.pass(events, Modifiers::NONE, run).viewport_output[&ViewportId::ROOT].commands.clone();
         self.drawn.push(self.w.ctx.zoom_factor());
@@ -667,6 +675,66 @@ fn zoom_drag_step_1a_a_step_landing_before_the_previous_steps_zoom_has_drawn_is_
 }
 
 #[test]
+fn zoom_drag_step_1a_a_step_is_not_overwritten_when_egui_runs_a_second_pass() {
+    // As the test above, the button held, but egui runs two passes on the
+    // run the previous step's zoom takes effect on (a widget asking for a
+    // discard). The second pass's input is empty, so its view is the
+    // first's, which lacks the second step: the request made after the run
+    // is as stale as with one pass.
+    for format in FORMATS {
+        let mut h = Hosted::open(1.0, SCALE_125, Answer::Short(1.0), format);
+        h.idle(1);
+        let opened = h.requests().len();
+        h.hold(true);
+        h.give(h.panel_at(1.5));
+        h.idle(1);
+        h.give(h.panel_at(1.75));
+        h.discard = true;
+        h.idle(1);
+        h.hold(false);
+        h.idle(8);
+        let at = format!("{format:?}");
+        let stale = h.panel_at(1.5);
+        assert!(!h.requests()[opened..].contains(&stale), "{at}: asked for {stale:?}: {:?}", h.requests());
+        assert!(near(h.pixels(), h.panel_at(1.75)), "{at}: the second step overwritten: {:?}", h.pixels());
+        assert!(h.fits(), "{at}: window {:?}, zoom {}", h.pixels(), h.zoom());
+    }
+}
+
+#[test]
+fn zoom_drag_step_1a_a_zoom_taking_effect_on_a_second_pass_leaves_the_next_view_fresh() {
+    // A menu choice clicked on a run egui gives a second pass: the chosen
+    // zoom takes effect on that second pass, and its request is answered.
+    // Then the host gives a size of its own off the aspect ratio. The next
+    // run's first pass is given the window itself, so the panel's request
+    // to bring it back to its shape is not stale: sent at once, the window
+    // back in shape after that one pass. Counting that pass as a new
+    // zoom's (its zoom compared with the first pass's of the run before)
+    // would refuse the request as stale and leave the window off its shape
+    // for a pass.
+    let mut h = Hosted::open(1.0, 1.0, Answer::Exact, Format::Clap);
+    h.idle(1);
+    let k = RANGE.menu().iter().position(|&z| z == 1.5).expect("a menu size");
+    let at = zoom::menu_row(MENU_AT, k).center();
+    zoom::open_menu(&h.w.ctx);
+    h.idle(2);
+    let press =
+        |pressed| Event::PointerButton { pos: at, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    h.pass(vec![Event::PointerMoved(at)]);
+    h.pass(vec![press(true)]);
+    h.discard = true;
+    h.pass(vec![press(false)]);
+    assert_eq!((h.zoom(), h.pixels()), (1.5, h.panel_at(1.5)), "the choice taken: {:?}", h.requests());
+    let asked = h.requests().len();
+    let shown = h.sizes.len();
+    h.give(vec2(h.panel_at(2.0).x, h.panel_at(1.5).y));
+    h.idle(4);
+    assert_eq!(h.sizes[shown], h.panel_at(1.5), "back in shape after one pass: {:?}", &h.sizes[shown..]);
+    assert_eq!(h.requests().len(), asked + 1, "asked back once: {:?}", h.requests());
+    assert_eq!((h.zoom(), h.chosen()), (1.5, vec![1.5]));
+}
+
+#[test]
 fn zoom_drag_step_1a_a_menu_choice_whose_request_is_stale_is_told_and_the_hosts_size_followed() {
     // The host gives a size of its own (its layout) between the menu
     // click's pass and the pass the chosen zoom takes effect on, whose view
@@ -828,7 +896,11 @@ fn w_d3_every_other_call_on_the_handle_and_the_callbacks_passes_straight_through
     assert_eq!(*world.requests.borrow(), [vec2(-1.0, -1.0)], "destroyed passed on");
     assert!(called.load(Ordering::SeqCst));
     // The wall clock, the default: a request now, a size at once after it,
-    // well within ANSWER_WITHIN, is its answer, kept off the window.
+    // well within ANSWER_WITHIN, is its answer, kept off the window. This
+    // relies on the real clock: two calls microseconds apart against
+    // ANSWER_WITHIN's limit, the only way to cover `Pairing::new`, whose
+    // clock no test can move. It would fail only if this thread stalled
+    // for longer than ANSWER_WITHIN between the two lines.
     assert!(methods.callbacks.request_resize(Size::Physical(PhysicalSize::new(10, 10)), 1.0).is_ok());
     handle.set_size(NativeSize::new(20, 20), &win).unwrap();
     assert_eq!(win.pixels.get(), Vec2::ZERO, "kept off the window");

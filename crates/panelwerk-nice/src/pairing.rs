@@ -184,13 +184,25 @@ impl Pairing {
     /// (in nice-plug-egui's `ui`; the requests come after the pass): the
     /// view of the window this pass works from, and the context a refusal
     /// is reported to.
+    ///
+    /// egui may run a second pass in one run (egui 0.37's `Context::run`,
+    /// when a widget asks for a discard: a new `Grid`, a `Resize`'s sizing
+    /// pass). That pass is given no new input, so it works from the first
+    /// pass's view of the window (rescaled, if a zoom takes effect on it):
+    /// it keeps the first pass's view here and records only its zoom and
+    /// context. On a run of one pass, every pass is a first.
     pub fn pass(&self, ctx: &Context) {
         let zoom = ctx.zoom_factor();
         let mut s = self.state();
-        // On a new zoom's pass egui gives the last pass's window, rescaled.
-        let new_zoom = s.zoom.is_some_and(|z| z != zoom);
-        s.basis = Some(if new_zoom { s.given_at_pass } else { s.given });
-        s.given_at_pass = s.given;
+        if ctx.current_pass_index() == 0 {
+            // On a new zoom's pass egui gives the last pass's window, rescaled.
+            let new_zoom = s.zoom.is_some_and(|z| z != zoom);
+            s.basis = Some(if new_zoom { s.given_at_pass } else { s.given });
+            s.given_at_pass = s.given;
+        }
+        // On a second pass too: a zoom taking effect there is the one the
+        // next run's first pass compares with, as that pass is given the
+        // window itself, not a rescaled view.
         s.zoom = Some(zoom);
         s.ctx = Some(ctx.clone());
     }

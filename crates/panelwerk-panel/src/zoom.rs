@@ -195,7 +195,13 @@ pub trait ZoomHost {
     /// held among them: a drag, Ian, 2026-11-26, ZOOM-DRAG-STEP, point
     /// 2 (a)), but a refused request's, which baseview puts back as the
     /// window was and [`refused`] accounts for, and [`follow`] awaits no
-    /// answer. False by default (rule 12): [`follow`]
+    /// answer. A request the window part finds stale (made from a view of
+    /// the window older than a size the host has given since, ZOOM-DRAG-STEP
+    /// point 1 (a)) is refused too, never sent, and without [`refused`]
+    /// being called: baseview puts the window back at the host's size,
+    /// which [`follow`] then follows, and a menu choice waiting on it is
+    /// judged on the next pass against that window (told, as it is not back
+    /// at its old size). False by default (rule 12): [`follow`]
     /// then takes the window on the first pass after a request, if within
     /// [`ANSWER_WITHIN`] of it, as the answer.
     fn answers_paired(&self) -> bool {
@@ -401,6 +407,16 @@ fn same(a: Vec2, b: Vec2) -> bool {
 /// the window stays larger than the panel; a last step back in range
 /// leaves the panel cut. With the window part, the stale request is never
 /// sent, and a size given with the main button held is always followed.
+///
+/// It assumes one egui pass per run, as every test of it runs. egui 0.37
+/// runs a second pass when a widget asks for a discard (a new `Grid`, a
+/// `Resize`'s sizing pass), with no new input: that pass's window is the
+/// first's, from before the request the first pass made. Read, not tested:
+/// an answer awaited, or a menu choice waiting to be told, would be judged
+/// on that second pass, against the window from before its request (the
+/// choice then undone), rather than on the next run's.
+/// (`panelwerk_nice::Pairing::pass` keeps its own view across such a pass,
+/// and is tested so.)
 pub fn follow(ctx: &Context, host: &dyn ZoomHost, base: Vec2, range: &Range) {
     let screen = ctx.content_rect().size();
     let zoom = ctx.zoom_factor();
