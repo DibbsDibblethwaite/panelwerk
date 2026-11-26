@@ -617,6 +617,29 @@ fn zoom_drag_step_1a_a_step_landing_before_the_previous_steps_zoom_has_drawn_is_
     }
 }
 
+#[test]
+fn zoom_drag_step_1a_a_menu_choice_whose_request_is_stale_is_told_and_the_hosts_size_followed() {
+    // The host gives a size of its own (its layout) between the menu
+    // click's pass and the pass the chosen zoom takes effect on, whose view
+    // is the window before it: the request for the menu's size is stale,
+    // never sent, and the window keeps the host's size. The choice is told
+    // on the next pass (the window is not back at its old size), and the
+    // host's size followed; not undone, which would ask for the old zoom's
+    // size from a view older still.
+    let mut h = Hosted::open(1.0, 1.0, Answer::Exact, Format::Clap);
+    h.idle(1);
+    let opened = h.requests().len();
+    h.choose(1.5);
+    h.give(h.panel_at(2.0));
+    h.idle(6);
+    assert_eq!(h.requests().len(), opened, "nothing sent: {:?}", h.requests());
+    assert_eq!(h.chosen(), [1.5]);
+    let followed = h.followed();
+    assert_eq!(followed.len(), 1, "{followed:?}");
+    assert!(near(h.panel_at(followed[0].0), h.panel_at(2.0)), "{followed:?}");
+    assert!(h.fits() && h.view() == h.pixels(), "window {:?}, zoom {}", h.pixels(), h.zoom());
+}
+
 // ---- ZOOM-DRAG-STEP point 2 (a): with the button held, never an answer ----
 
 /// Opened at 250 % on a display at 100 %, the corner dragged past the
