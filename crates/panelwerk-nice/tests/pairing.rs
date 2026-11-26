@@ -373,8 +373,9 @@ impl Hosted {
         }
     }
 
-    /// One pass with `events`, then the resize it asked for, if any, and
-    /// the host's answers due.
+    /// One run of egui with `events` (one pass, or two if `discard` is
+    /// set), then the resize it asked for, if any, and the host's answers
+    /// due.
     fn pass(&mut self, events: Vec<Event>) {
         self.clock.add(FRAME);
         self.w.screen = self.pixels() / (self.scale * self.seen);
