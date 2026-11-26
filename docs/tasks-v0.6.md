@@ -1,0 +1,25 @@
+# Panelwerk: v0.6.0's tasks (the zoom drift's cure)
+
+Ian's answer to the cure of the family's zoom drift (card ZOOM-DRIFT-CURE, 2026-11-26, 18:16, "As recommended: (a) in each of 1 to 7, and the split", no note). The approved design and its fact-check are in `docs/proposals/zoom-drift-cure.md` and `docs/proposals/zoom-drift-cure-check.md`, the seven choices listed at the head of the design. `docs/tasks-review-2.md` holds the second review's tasks only, so this file holds v0.6.0's; each line is unticked until its commit, ticked then with its commit. Sizes are human developer-days, the design's (§5). One library change at a time, each by its own agent, test first, through the hook (rules 7 and 13); the consumer check before the tag (rule 14). The consumers' own tasks (Rödalog's R-1 to R-3, Klinga's K-1, Kör's and Fläns's pins) are in their own repositories.
+
+## The rule the cure gives `zoom` (Ian, 2026-11-26, ZOOM-DRIFT-CURE)
+
+Panelwerk keeps no behaviour rules of its own (each consumer's panel rules name the zoom: Kör's and Fläns's B-PNL-6 and 7, Rödalog's B-PNL-41 to 44, Klinga's B-PNL-6, 7 and 13); the module's documentation says how `follow` works. The design's wording for it (§4), approved with the card, is what W-D1 builds:
+
+> A size the host gives on the frame after the panel asked for one (its opening size, a new zoom's size), within a quarter second, is the host's answer: never a new zoom, never asked again. A plugin that pairs requests and answers itself says so, and then the panel awaits nothing. A menu choice is told to the plugin once the window has taken it; if the window is back at its old size, or the plugin reports a refusal, the zoom goes back and nothing is told. Any other size the host gives is the host's own: the zoom follows it.
+
+With the fact-check's correction (its finding 1, the design's change 1): the panel awaits an answer only when the window must change size, so a followed corner-drag step, whose window already has the new zoom's size, awaits none and no drag step is lost.
+
+## v0.6.0, in series
+
+- [ ] **W-D1 The shared zoom code** (design (A); 1.0): `zoom::follow` never takes the host's answer to the panel's own request for a new zoom and never asks for it again (at most one request per zoom); the wait for an answer bounded at a quarter second of egui's input time, a named constant; a menu choice told to the plugin only once the window has taken it, and undone, untold, when the window is back at its old size; any other host size the host's own, followed and passed to `ZoomHost::zoom_followed` (default: `zoom_chosen`, v0.5.0's reading); `ZoomHost::answers_paired` (default false) for a consumer whose window code pairs requests and answers ((B)), so `follow` awaits nothing; `zoom::refused(ctx)` for (B) to call on CLAP's `false`. Tests first: a host answering a pixel short (one request, no drift), the 90 % runaway, a late answer, the two-step drag to 175 % (sizes compared in pixels), the refusal's frames, the opening's answer, a menu choice told once. Ends with: the hook, 100 % coverage.
+- [ ] **W-D3 The framework helper's window part for Klinga** (design (B) in `panelwerk-nice`; 0.75; after W-D1): pairing each request with the next host size within 250 ms (an injectable clock for tests), or nested in a CLAP request, the answer not applied to the window; the main button's state at each other host size for `zoom_followed` (point 1 (a): physical buttons, swapped buttons handled); `zoom::refused` on CLAP's `false` (point 4 (a)). Native stand-in tests for both formats. Ends with: the hook.
+- [ ] **W-D2 Changelog, consumers check and tag v0.6.0** (0.35; after W-D3): `CHANGELOG.md` (what changes on each consumer's panel: a menu choice told a frame later; each consumer's click-helper test), README, the Consumers table, `./scripts/consumers.sh` green, the tag. Ends with: the consumer check green and the tag.
+
+## Later (not v0.6.0; Ian, 2026-11-26, ZOOM-DRIFT-CURE, point 7 (a))
+
+Klinga's three notes for Panelwerk as its first user, each for a later release:
+
+- **A switch that can omit its value text**: an option on the switch, off by default (rule 12).
+- **A list button that can dim**: an option on the list button, off by default.
+- **The unsupported-rate holder**, now identical in three plugins: one shared copy.

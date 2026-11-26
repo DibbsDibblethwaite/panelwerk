@@ -52,7 +52,7 @@ cargo test --workspace --doc   # the API's examples
 
 ## Tasks
 
-The second review's tasks (Ian, 2026-11-22, REVIEW-2-FINDINGS) are in `docs/tasks-review-2.md`: read it for what is open and what comes next.
+The second review's tasks (Ian, 2026-11-22, REVIEW-2-FINDINGS) are in `docs/tasks-review-2.md`: read it for what is open and what comes next. v0.6.0's, the zoom drift's cure (Ian, 2026-11-26, ZOOM-DRIFT-CURE), are in `docs/tasks-v0.6.md`, its approved design in `docs/proposals/`.
 
 ## Versions and the family update
 
