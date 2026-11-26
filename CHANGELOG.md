@@ -2,6 +2,64 @@
 
 All notable changes to Panelwerk. Versions follow `CLAUDE.md`, Versions; a change to what a consumer shows (a word, a colour, a size) lists what changes on each consumer's panel.
 
+## Unreleased (v0.6.0)
+
+*The zoom drift's cure (`docs/tasks-v0.6.md`, its design in `docs/proposals/zoom-drift-cure.md`): approved by Ian on card ZOOM-DRIFT-CURE (2026-11-26, "an API addition and a behaviour change, Panelwerk v0.6.0, agreed with Ian (rules 2 and 12)"), its drag-step cases on ZOOM-DRAG-STEP (2026-11-26), the window part's API as built on PW-WINDOW-PART (2026-11-26). Additive in its API; a behaviour change for every consumer of `zoom`, even one that changes nothing, so the consumer check takes rule 14's path for an agreed breaking change (below).*
+
+- **W-D1, the shared zoom code: the host's answer is not a new zoom.** Before, `zoom::follow` read every size the host gave as the corner dragged: a host answering the panel's request a pixel short had its answer taken for a new zoom, saved and asked for again, so the zoom drifted, ran away at 90 %, or the window resized every pass. Now, after the panel asks for a size the window doesn't have (the opening size, a new zoom's size, the window asked back to its shape), the next pass's window, within `ANSWER_WITHIN` of egui's input time, is the host's answer: kept as it is, never followed, never asked for again (at most one request per zoom). A corner-drag step whose window already has the new zoom's size awaits nothing, so the next step is followed. Sizes are compared in pixels (egui's screen × the zoom × the display's scale), the same window within half a pixel; v0.5.0's half-point tolerance for following a host's size is kept, carried from v0.5.0 with no source recorded (ZOOM-DRAG-STEP, point 4). Added, each defaulted to today's behaviour (rule 12):
+  - `zoom::ZoomHost::zoom_followed(zoom)`: a size the host gave on its own, followed; its default calls `zoom_chosen`, as v0.5.0 read every size.
+  - `zoom::ZoomHost::answers_paired()`, default `false`: a plugin whose window code pairs requests with answers (the window part, below, or its own) says so, and `follow` then awaits nothing.
+  - `zoom::ANSWER_WITHIN` (0.25 s), public so tests drive egui's clock by it and the window part pairs within the same constant (ZOOM-DRAG-STEP, point 3).
+  - `zoom::refused(ctx)`, for the window part to call on CLAP's `false`: a menu choice waiting on that request is undone at once, untold; no answer is awaited for it.
+- **W-D1b, the test kit's display scale** (ZOOM-DRAG-STEP, point 5). `panelwerk-testkit`'s `Window::display_scale: Option<f32>`, a public field, `None` from `Window::new` as before; when set, each pass gives egui that `native_pixels_per_point`. A `Window` written as a struct literal would need the field; no consumer writes one.
+- **W-D3, `panelwerk-nice`'s window part** (the design's (B); ZOOM-DRAG-STEP points 1 (a) and 2 (a); PW-WINDOW-PART points 1 to 5). An addition: a plugin that doesn't wire it in is unchanged. `Pairing` (one per window, made in `Editor::spawn`, `Clone`): `Pairing::new(button)` (the wall clock; CLAUDE.md rule 5's one exception, PW-WINDOW-PART point 3 (a)), `Pairing::with_clock(button, clock)` (for tests), `Pairing::callbacks(HostMethods) -> HostMethods` (the host's callbacks wrapped), `Pairing::around(inner, measure) -> Paired<H>` (the window's handle wrapped; `measure` gives the window's size in pixels, baseview's `Window::size`), `Pairing::pass(&egui::Context)` (once a pass, before `zoom::follow`), `Pairing::dragged() -> bool` (whether the main button was held at the last host size that changed the window, for the plugin's `zoom_followed`); `Paired<H>: EditorHandle`; `type Button = Arc<dyn Fn() -> bool + Send + Sync>` (the plugin's reading of the physical main button, swapped buttons handled: on Windows `GetAsyncKeyState` and `GetSystemMetrics(SM_SWAPBUTTON)`, kept in each plugin, PW-WINDOW-PART point 2 (a)); `type Clock = Arc<dyn Fn() -> Duration + Send + Sync>`. What it does:
+  - The first size the host gives inside the panel's request (CLAP) or within `ANSWER_WITHIN` after it (VST3) is the answer: not passed to the window. Any other is passed on.
+  - The host's refusal (`Err` from `request_resize`) calls `zoom::refused`, so the next frame is at the old zoom.
+  - A size given with the main button held is a drag: followed, never an answer; one given after the request leaves the request's answer still awaited (PW-WINDOW-PART point 4 (a), as built).
+  - A request made from a view of the window older than a host size given since is stale: refused (`Err`), never sent, without `refused`, so baseview keeps the host's size and a corner-drag step is never overwritten. A menu choice whose request is stale is told and saved while the window stays at the host's size, which is then followed (PW-WINDOW-PART point 5, accepted).
+  - `zoom::follow`'s doc states the two corner-drag gaps that remain without the window part (Kör and Fläns): a step landing before the previous step's zoom has drawn is overwritten by the request for the previous step's size; a step within `ANSWER_WITHIN` after the panel asks the window back to its shape is taken as that request's answer.
+
+### What changes for a consumer that changes nothing (the behaviour change, agreed)
+
+What each consumer's panel shows: no word, colour or geometry changes. What it does differently, through `zoom::follow` and `zoom::menu` alone:
+
+- **A menu choice is told (`zoom_chosen`) once the window has taken it**: on the pass after its size was asked for, two passes after the click, not one. If the window is then back at its old size (a CLAP host refused it), the zoom goes back and nothing is told. A choice still waiting when the window closes is never told, so not saved. The current zoom, chosen again, is told at once.
+- **The window's second pass is the opening's answer**, never followed: a host size the panel first sees on it is kept, not turned into a zoom.
+- **A host size within `ANSWER_WITHIN` after any request** (the opening, a new zoom's size, the window asked back to its shape) is kept as the answer, not followed.
+- **`zoom::choose` replaces a menu choice still waiting**, which is then neither told nor undone.
+
+### What each consumer must do at its pin move
+
+Until each consumer makes these changes, `scripts/consumers.sh` fails for it on exactly the tests named here, as expected (rule 14's path for an agreed breaking change). Each is a test's set-up given one more pass, for one of two reasons: **(a) the window's second pass is the opening's answer**, so a test that gives the window a size of the host's own on that pass now needs one idle pass first; **(b) a menu choice is told a pass later**, so a click helper, or a test that checks the saved zoom straight after its click, needs one more pass.
+
+- **Kör** (its pin move; the window part optional, about 0.5 d):
+  - (a) `crates/koer-gui/tests/layout.rs`, `b_pnl_6_a_host_that_refuses_the_size_is_not_asked_again_and_again`: one more `w.idle(&host)` after the first, before `w.screen` is set.
+  - (b) `crates/koer-plugin/tests/app.rs`, `cubase_k1_b_pnl_7_b_pnl_10_the_moved_app_saves_a_chosen_zoom_and_shows_the_unsupported_rate`: one more `run(&ctx, &mut app, vec![vec![]])` after the menu row's click, before the saved zoom is checked.
+  - Its Windows runs: `cubase_k3_sizes` (with `--ignored`) and `b_pnl_12_acceptance`.
+- **Fläns** (the same; the window part optional):
+  - (a) `crates/flaens-gui/tests/zoom.rs`, `b_pnl_6_a_host_that_refuses_the_size_is_not_asked_again_and_again`: one more `w.idle(&host)` after the first.
+  - (b) `crates/flaens-plugin/tests/app.rs`, `cubase_f1_b_pnl_7_b_pnl_10_the_moved_app_saves_a_chosen_zoom_and_shows_the_unsupported_rate`: one more `run(&ctx, &mut app, vec![vec![]])` after the menu row's click.
+  - Its Windows runs: `cubase_f3_sizes` (with `--ignored`) and `b_pnl_12_acceptance`.
+- **Klinga** (its K-1):
+  - (a) `crates/klinga-gui/tests/zoom.rs`: one idle pass after the window opens (`h.idle(1)` after `Hosted::open`, or a second `w.idle(&host)`), before the host's own size, in `b_pnl_6_the_window_dragged_larger_scales_the_panel_and_the_zoom_is_chosen`, `b_pnl_6_off_the_aspect_ratio_or_the_range_the_window_is_brought_back`, `b_pnl_6_a_window_off_its_size_at_the_same_zoom_is_asked_back_once` and, through its helper `a_view_short_once_after_the_open`, `b_pnl_13_at_125_percent_a_view_a_pixel_narrow_once_leaves_the_zoom_and_saves_none` (the design's prototype counted three such tests; the check found these four).
+  - (b) `crates/klinga-plugin/tests/panel_zoom.rs`: its `Window::click` helper one more `frame(vec![])` (`b_pnl_7_after_a_window_closed_at_200_a_fresh_instance_opens_at_200` fails without it).
+  - Wire the window part: a `Pairing` per window, made in `Editor::spawn`; `Pairing::callbacks` around the host's callbacks and `Pairing::around(handle, measure)` around the window's handle (`measure` from baseview's `Window::size`); `Pairing::pass(ctx)` each pass before `zoom::follow`; its `ZoomHost` answers `answers_paired` with `true`, and its `zoom_followed` saves a followed size only if `Pairing::dragged()`.
+  - **Supply the `Button`**: the physical main mouse button, read with `GetAsyncKeyState` and `GetSystemMetrics(SM_SWAPBUTTON)` (swapped buttons handled), in Klinga's own code with its own `unsafe` (PW-WINDOW-PART point 2 (a)).
+  - **Re-measure the window after a refused or stale request** (for example at the next pass, from baseview's `Window::size`) and correct the size it reports, rather than trust the size baseview's `resized` gives then (the refused one); otherwise `gui.get_size` and `getSize` stay one step behind, and a VST3 host resizing to `getSize` undoes the drag step the cure keeps.
+  - The rest of its K-1 (the design's §5): its strict zoom tests un-ignored, its refusal test re-expressed to Rödalog's B-PNL-43 reading (with a reviewer), its rules and their history.
+  - Its Windows runs: `cubase_k3_sizes` (with `--ignored`), `b_pnl_12_acceptance` and `b_pnl_12_paint`; one sweep.
+- **Rödalog**: on `v3`, nothing (it uses only `panelwerk-text`; the check passes as it is). On `pz`, its R-1: the pin move; the window part in its own window code, not this crate (ZOOM-DRIFT-CURE point 3 (a)), mirroring `Pairing` as `docs/tasks-v0.6.md`'s W-D3 note lists (refuse a stale request; keep the answer off the window; a size with the button held a drag; `zoom::refused` on a refusal; the view recorded each pass before `zoom::follow`); its `Keeper` answers `answers_paired` with `true` and saves a followed size only from a drag (B-PNL-41); it supplies the button's reading as Klinga does; and it re-measures the window after a refused or stale request, as Klinga. `pz` is not in the consumer check (which builds `v3`), so its tests on v0.6.0 are R-1's to run: any that resize on the window's second pass, or check a menu choice straight after its click, take the same one-pass changes. Its Windows runs: `b_pnl_10_acceptance` and `pz_vst3_zoom`; one sweep.
+
+### For the consumers' Windows runs (nothing here has run on Windows)
+
+- After a refused CLAP request and after a stale request: baseview 0.4.2 puts the window back (`WM_SIZE`) but tells the handler only the refused size, so the size `gui.get_size` and `getSize` report must be the window's once the plugin re-measures it.
+- `GetAsyncKeyState` held at each host's `set_size` during a corner drag, in Reaper CLAP, Reaper VST3 and Cubase (the design's §6 risk).
+- Each host's VST3 answer inside `resizeView` or within 250 ms.
+- `zoom::refused` from inside `request_resize` with egui's context unlocked.
+- Drag steps landing between passes in a real drag.
+- The runs the design names: Rödalog's `b_pnl_10_acceptance` and `pz_vst3_zoom`; Klinga's, Kör's and Fläns's `cubase_k3_sizes` (Fläns's `cubase_f3_sizes`) with `--ignored` and `b_pnl_12_*`; one sweep each.
+- Ian's check at the machine (the design's §5) gains "the window is right just after releasing a drag" (PW-WINDOW-PART point 4 (a)).
+
 ## v0.5.0 (2026-11-24)
 
 *The second review's tasks (`docs/tasks-review-2.md`), approved by Ian on card REVIEW-2-FINDINGS (2026-11-22), each a minor-version change under rule 2; the tag agreed by Ian on card PW-V050-TAG (2026-11-24).*

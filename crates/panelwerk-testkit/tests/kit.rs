@@ -82,6 +82,25 @@ fn the_window_reports_the_commands_of_the_last_pass() {
     assert!(w.circle_in(Rect::EVERYTHING, Color32::RED), "nested shapes are flattened");
 }
 
+/// Ian's display scaling, 125 %, a scale not 1 so that one given shows.
+const SCALE_125: f32 = 1.25;
+
+#[test]
+fn the_window_gives_egui_the_display_scale_it_is_set_to_and_none_by_default() {
+    // ZOOM-DRAG-STEP, point 5 (Ian, 2026-11-26): egui-baseview gives egui
+    // the display's scale as `native_pixels_per_point`, which the zoom's
+    // sizes in pixels are worked from; by default none, as before.
+    let mut w = Window::new(vec2(100.0, 100.0));
+    assert_eq!(w.display_scale, None);
+    w.idle(&mut |_| {});
+    assert_eq!(w.ctx.native_pixels_per_point(), None, "none given by default");
+    w.display_scale = Some(SCALE_125);
+    let mut seen = None;
+    w.idle(&mut |ui| seen = ui.ctx().native_pixels_per_point());
+    assert_eq!(seen, Some(SCALE_125), "given in the pass it is set for");
+    assert_eq!(w.ctx.pixels_per_point(), SCALE_125, "egui's points scaled by it, the zoom 1");
+}
+
 #[test]
 #[should_panic(expected = "a pass was run")]
 fn reading_before_a_pass_panics() {

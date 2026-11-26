@@ -1,6 +1,7 @@
 //! Panelwerk's held edits on nice-plug (W-2b; Ian, 2026-11-23, PW-BUILT,
 //! point 1 (a)): the framework's side of `panelwerk_panel::hold`, once for
-//! the family, where Kör and Fläns each carried a copy.
+//! the family, where Kör and Fläns each carried a copy; and the framework's
+//! side of `panelwerk_panel::zoom`, its window part (W-D3).
 //!
 //! - [`ParamMap`] and [`Adapter`]: the panel's `ParamHost` over a plugin's
 //!   parameters and its window's `GuiContext`, `shows` comparing plain
@@ -12,6 +13,14 @@
 //!   and its hide take the edits still open and hand them on as an
 //!   [`EndEdits`] task, which [`queue_later`] queues for the main thread:
 //!   never ended inside the host's call (`queue_later` says why).
+//! - [`Pairing`] and [`Paired`]: the zoom drift cure's window part (W-D3;
+//!   Ian, 2026-11-26, ZOOM-DRIFT-CURE and ZOOM-DRAG-STEP): the host's
+//!   callbacks and the window's handle wrapped, so the host's answer to the
+//!   panel's own resize request is kept off the window, a refusal is
+//!   reported to the zoom, a size given with the main button held is a
+//!   drag, and a drag step is never overwritten by a request made from an
+//!   older view of the window. For a plugin whose `ZoomHost` answers
+//!   `answers_paired` with `true`; [`Pairing`]'s doc says how to wire it.
 //!
 //! This is the one Panelwerk crate that depends on nice-plug (exactly
 //! 0.4.2, which each consumer redirects to its own patched copy), and the
@@ -104,7 +113,9 @@
 
 #[allow(unsafe_code)]
 mod adapter;
+mod pairing;
 mod window;
 
 pub use adapter::{Adapter, EndEdits, ParamMap};
+pub use pairing::{Button, Clock, Paired, Pairing};
 pub use window::{queue_later, Ends, Handle, HeldEdits, Leaving};
