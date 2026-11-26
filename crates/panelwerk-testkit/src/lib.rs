@@ -230,7 +230,8 @@ impl ZoomHost for FakeHost {
 pub type Run<'a> = dyn FnMut(&mut Ui) + 'a;
 
 /// A headless window: one egui context, its clock (a tenth of a second a
-/// pass), its screen in points, and the last pass's output.
+/// pass), its screen in points, the display's scale if one is given, and
+/// the last pass's output.
 ///
 /// ```
 /// use panelwerk_panel::egui::{self, Sense};
@@ -251,6 +252,23 @@ pub struct Window {
     pub time: f64,
     /// The screen in points, as the host's window gives it.
     pub screen: Vec2,
+    /// The display's scale, given to egui each pass as the window's
+    /// `native_pixels_per_point`, as egui-baseview gives it (at the
+    /// window's build and at every resize), so that what is worked in
+    /// pixels from it (`zoom::follow`'s sizes) is tested at a scale other
+    /// than 1. `None`, the default, gives egui none, as before v0.6.0
+    /// (Ian, 2026-11-26, ZOOM-DRAG-STEP, point 5: an addition, rule 12).
+    ///
+    /// ```
+    /// use panelwerk_panel::egui;
+    /// use panelwerk_testkit::Window;
+    ///
+    /// let mut w = Window::new(egui::vec2(100.0, 100.0));
+    /// w.display_scale = Some(1.25);
+    /// w.idle(&mut |_| {});
+    /// assert_eq!(w.ctx.native_pixels_per_point(), Some(1.25));
+    /// ```
+    pub display_scale: Option<f32>,
     /// The last pass's output.
     pub last: Option<FullOutput>,
 }
@@ -258,7 +276,7 @@ pub struct Window {
 impl Window {
     /// A window `screen` points in size, no pass run yet.
     pub fn new(screen: Vec2) -> Self {
-        Window { ctx: Context::default(), time: 0.0, screen, last: None }
+        Window { ctx: Context::default(), time: 0.0, screen, display_scale: None, last: None }
     }
 
     /// One pass with `events` and `modifiers` held.
@@ -266,12 +284,15 @@ impl Window {
         self.time += 0.1;
         // egui 0.37 takes the modifiers as an event, not a field.
         events.insert(0, Event::ModifiersChanged(modifiers));
-        let input = RawInput {
+        let mut input = RawInput {
             screen_rect: Some(Rect::from_min_size(Pos2::ZERO, self.screen)),
             time: Some(self.time),
             events,
             ..RawInput::default()
         };
+        if let Some(scale) = self.display_scale {
+            input.viewports.entry(ViewportId::ROOT).or_default().native_pixels_per_point = Some(scale);
+        }
         let mut output = self.ctx.run_ui(input, |ui| run(ui));
         output.textures_delta.clear();
         self.last.insert(output)

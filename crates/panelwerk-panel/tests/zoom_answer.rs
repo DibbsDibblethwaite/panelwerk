@@ -14,15 +14,14 @@
 //! egui-baseview's own resize does; the host's answer then lands as the
 //! test's [`Answer`] says, before the next pass or, for a late answer, one
 //! pass later. egui is given the display's scale as egui-baseview gives it
-//! ([`Egui`]), so `follow`'s sizes in pixels are checked at 125 %.
+//! (the test kit's `Window::display_scale`, Ian, 2026-11-26, ZOOM-DRAG-STEP,
+//! point 5), so `follow`'s sizes in pixels are checked at 125 %.
 
 use std::cell::RefCell;
 
-use egui::{
-    vec2, Context, Event, FullOutput, Modifiers, PointerButton, Pos2, RawInput, Rect, Ui, Vec2, ViewportCommand,
-    ViewportId,
-};
+use egui::{vec2, Event, Modifiers, PointerButton, Pos2, Ui, Vec2, ViewportCommand, ViewportId};
 use panelwerk_panel::zoom::{self, Range, ZoomHost, ANSWER_WITHIN};
+use panelwerk_testkit::Window;
 
 /// A range wide enough for Rödalog's 90 % and the menu sizes the tests
 /// choose; a test range, not a consumer's.
@@ -57,39 +56,6 @@ const FRAME: f64 = 0.1;
 /// 200 % a pixel is half a point or more, and egui's rounding of the screen
 /// to 1/32 point decides which side of the tolerance it falls.
 const SCALE_300: f32 = 3.0;
-
-/// The window as egui-baseview feeds egui each pass: its screen in points,
-/// its clock, and the display's scale as `native_pixels_per_point`
-/// (egui-baseview 0.9 `window.rs` sets it at the window's build and at
-/// every `resized`), which `follow` multiplies its sizes by. Not the test
-/// kit's `Window`: that gives egui no display scale, so a `follow` that
-/// left it out would pass at 125 % too, and a field for it in the kit is a
-/// change to the kit's public API, Ian's to agree first (rule 2).
-struct Egui {
-    ctx: Context,
-    /// The input time of the last pass, in seconds.
-    time: f64,
-    /// The screen in points.
-    screen: Vec2,
-    /// The display's scale.
-    native: f32,
-}
-
-impl Egui {
-    fn pass(&mut self, events: Vec<Event>, run: &mut dyn FnMut(&mut Ui)) -> FullOutput {
-        self.time += FRAME;
-        let mut input = RawInput {
-            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, self.screen)),
-            time: Some(self.time),
-            events,
-            ..RawInput::default()
-        };
-        input.viewports.entry(ViewportId::ROOT).or_default().native_pixels_per_point = Some(self.native);
-        let mut output = self.ctx.run_ui(input, |ui| run(ui));
-        output.textures_delta.clear();
-        output
-    }
-}
 
 /// The plugin's side: every zoom told it, by which call, and whether its
 /// window code pairs requests and answers itself (the design's (B)).
@@ -135,7 +101,8 @@ fn panel(ui: &mut Ui, plugin: &Plugin, base: Vec2) {
 
 /// The panel's window in a host, as the module's note models it.
 struct Hosted {
-    w: Egui,
+    /// egui's side: the screen, the clock, the display's scale.
+    w: Window,
     plugin: Plugin,
     base: Vec2,
     /// The window's size in physical pixels.
@@ -162,7 +129,8 @@ impl Hosted {
     /// baseview asks for at its show (patch 10's queued request), which
     /// lands before the second pass.
     fn open(base: Vec2, zoom: f32, scale: f32, answer: Answer, paired: bool) -> Self {
-        let w = Egui { ctx: Context::default(), time: 0.0, screen: base, native: scale };
+        let mut w = Window::new(base);
+        w.display_scale = Some(scale);
         w.ctx.set_zoom_factor(zoom);
         let mut h = Hosted {
             w,
@@ -201,7 +169,8 @@ impl Hosted {
     fn pass(&mut self, events: Vec<Event>) {
         self.w.screen = self.pixels / (self.scale * self.seen);
         let (plugin, base) = (&self.plugin, self.base);
-        let commands = self.w.pass(events, &mut |ui| panel(ui, plugin, base)).viewport_output[&ViewportId::ROOT]
+        let commands = self.w.pass(events, Modifiers::NONE, &mut |ui| panel(ui, plugin, base)).viewport_output
+            [&ViewportId::ROOT]
             .commands
             .clone();
         self.drawn.push(self.w.ctx.zoom_factor());
