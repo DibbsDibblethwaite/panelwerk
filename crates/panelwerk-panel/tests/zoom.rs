@@ -136,6 +136,10 @@ fn a_host_that_refuses_the_size_is_not_asked_again_and_again() {
     let mut w = window();
     let run = &mut panel(&host);
     w.idle(run);
+    // The second pass's window is the host's answer to the opening size
+    // (ZOOM-DRIFT-CURE; tests/zoom_answer.rs), never followed: the host's
+    // own size comes after it.
+    w.idle(run);
     w.screen = vec2(600.0, 280.0);
     w.idle(run);
     assert_eq!(w.commands(), [ViewportCommand::InnerSize(BASE)]);
